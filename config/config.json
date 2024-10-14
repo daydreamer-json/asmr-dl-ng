@@ -1,0 +1,38 @@
+{
+  "file": {
+    "outputDir": "./output"
+  },
+  "network": {
+    "asmrApi": {
+      "baseDomain": {
+        "latest": "api.asmr-200.com",
+        "original": "api.asmr.one",
+        "mirror1": "api.asmr-100.com",
+        "mirror2": "api.asmr-200.com",
+        "mirror3": "api.asmr-300.com"
+      },
+      "apiPath": "/api",
+      "refererUrl": "www.asmr.one"
+    },
+    "userAgent": {
+      "chromeWindows": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+      "curl": "curl/8.4.0",
+      "curlUnity": "UnityPlayer/2021.3.14f1 (UnityWebRequest/1.0, libcurl/7.84.0-DEV)",
+      "ios": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    },
+    "timeout": 20000,
+    "threadCount": 8,
+    "adapterName": "Ethernet"
+  },
+  "logger": {
+    "logLevel": "trace",
+    "progressBarConfig": {
+      "barCompleteChar": "#",
+      "barIncompleteChar": ".",
+      "hideCursor": false,
+      "barsize": 80,
+      "fps": 60,
+      "clearOnComplete": true
+    }
+  }
+}
