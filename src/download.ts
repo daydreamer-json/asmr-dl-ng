@@ -9,12 +9,6 @@ import prompts from 'prompts';
 
 async function mainCmdHandler() {
   logger.level = argvUtils.getArgv().logLevel;
-  process.platform === 'win32'
-    ? await (async () => {
-        const netshCmdRsp = await nicUtils.getNetshInfo();
-        await nicUtils.checkIsUsingTempIpv6(netshCmdRsp);
-      })()
-    : null;
   let downloadWorkId: number;
   if ('id' in argvUtils.getArgv()) {
     downloadWorkId = argvUtils.getArgv().id;
