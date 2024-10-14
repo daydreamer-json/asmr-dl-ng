@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "prettier --write src/**/* && npx tsc",
+    "build": "npx prettier --write src/**/* && npx tsc",
     "build:watch": "npx tsc --watch"
   },
   "repository": {
