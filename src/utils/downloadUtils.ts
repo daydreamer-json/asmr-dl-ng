@@ -208,7 +208,7 @@ async function singleDownload(workId: number) {
           subProgressBar !== null ? subProgressBar.increment(chunk.length) : null;
           subProgressBar !== null
             ? subProgressBar.update(downloadedLength, {
-                title: entryObj.uuid,
+                title: path.basename(entryObj.path),
                 ...progressTextFormatter(
                   downloadedLength,
                   headRsp.headers['content-length'] ? parseInt(headRsp.headers['content-length']) : 0,
