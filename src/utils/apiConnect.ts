@@ -1,8 +1,8 @@
-import appConfig from './config.js';
-import logger from './logger.js';
 import axios from 'axios';
 import apiDefsModule from './apiDefs.js';
 import argvUtils from './argv.js';
+import appConfig from './config.js';
+import logger from './logger.js';
 
 async function apiConnect(
   url: string,

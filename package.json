@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx prettier --write src/**/* && npx tsc",
+    "build": "npx biome format --write . && npx tsc",
     "build:watch": "npx tsc --watch"
   },
   "repository": {
@@ -42,6 +42,7 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@tsconfig/node20": "^20.1.4",
     "@types/async-retry": "^1.4.9",
     "@types/clear": "^0.1.4",

@@ -1,5 +1,5 @@
-import appConfig from './config.js';
 import argvUtils from './argv.js';
+import appConfig from './config.js';
 
 interface Type_AsmrApi {
   sort: 'asc' | 'desc';

@@ -1,10 +1,10 @@
+import path from 'path';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import path from 'path';
-import appConfig from './utils/config.js';
 import testMainCmdHandler from './download.js';
 // import test2MainCmdHandler from './test2.js';
 import argvUtils from './utils/argv.js';
+import appConfig from './utils/config.js';
 
 async function parseCommand() {
   const yargsInstance = yargs(hideBin(process.argv));

@@ -1,11 +1,11 @@
 import { DateTime } from 'luxon';
 
-import appConfig from './utils/config.js';
+import prompts from 'prompts';
 import argvUtils from './utils/argv.js';
+import appConfig from './utils/config.js';
+import downloadUtils from './utils/downloadUtils.js';
 import logger from './utils/logger.js';
 import nicUtils from './utils/nicUtils.js';
-import downloadUtils from './utils/downloadUtils.js';
-import prompts from 'prompts';
 
 async function mainCmdHandler() {
   logger.level = argvUtils.getArgv().logLevel;

@@ -1,12 +1,12 @@
-import appConfig from './config.js';
-import logger from './logger.js';
-import argvUtils from './argv.js';
 import fs from 'fs';
 import path from 'path';
-import cliProgress from 'cli-progress';
-import { encode as cborEncode, decode as cborDecode } from 'cbor2';
-import YAML from 'yaml';
 import { compress as zstdCompress, decompress as zstdDecompress } from '@mongodb-js/zstd';
+import { decode as cborDecode, encode as cborEncode } from 'cbor2';
+import cliProgress from 'cli-progress';
+import YAML from 'yaml';
+import argvUtils from './argv.js';
+import appConfig from './config.js';
+import logger from './logger.js';
 
 async function createDirectory(path: string) {
   await fs.promises.mkdir(path, { recursive: true });

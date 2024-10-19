@@ -1,7 +1,7 @@
+import path from 'path';
 import { DateTime } from 'luxon';
 import * as TypesTrackEntry from '../types/TrackEntry.js';
 import argvUtils from './argv.js';
-import path from 'path';
 import appConfigDatabase from './configDatabase.js';
 import stringUtils from './stringUtils.js';
 

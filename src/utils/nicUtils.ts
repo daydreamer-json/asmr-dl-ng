@@ -1,10 +1,10 @@
-import { DateTime, Duration } from 'luxon';
 import childProcess from 'child_process';
 import util from 'util';
+import { DateTime, Duration } from 'luxon';
+import apiConnect from './apiConnect.js';
+import argvUtils from './argv.js';
 import appConfig from './config.js';
 import logger from './logger.js';
-import argvUtils from './argv.js';
-import apiConnect from './apiConnect.js';
 const execPromise = util.promisify(childProcess.exec);
 
 interface NetshCmdRspNetshIpv6AddrIF {

@@ -1,6 +1,6 @@
 import log4js from 'log4js';
-import appConfig from './config.js';
 import argvUtils from './argv.js';
+import appConfig from './config.js';
 
 log4js.configure({
   appenders: {

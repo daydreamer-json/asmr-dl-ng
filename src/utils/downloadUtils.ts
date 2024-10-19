@@ -1,24 +1,24 @@
+import crypto from 'crypto';
+import EventEmitter from 'events';
 import fs from 'fs';
 import path from 'path';
-import * as uuid from 'uuid';
-import crypto from 'crypto';
+import retry from 'async-retry';
+import axios, { AxiosResponse } from 'axios';
 import cliProgress from 'cli-progress';
 import { DateTime } from 'luxon';
-import axios, { AxiosResponse } from 'axios';
-import appConfig from './config.js';
-import logger from './logger.js';
-import argvUtils from './argv.js';
-import stringUtils from './stringUtils.js';
-import waitUtils from './waitUtils.js';
+import * as uuid from 'uuid';
+import * as TypesTrackEntry from '../types/TrackEntry.js';
 import apiConnectModule from './apiConnect.js';
 import apiDefsModule from './apiDefs.js';
-import mathUtils from './mathUtils.js';
-import * as TypesTrackEntry from '../types/TrackEntry.js';
-import EventEmitter from 'events';
-import markdownUtils from './markdownUtils.js';
+import argvUtils from './argv.js';
+import appConfig from './config.js';
 import appConfigDatabase from './configDatabase.js';
 import httpErrorCodeDefs from './httpErrorCodeDefs.js';
-import retry from 'async-retry';
+import logger from './logger.js';
+import markdownUtils from './markdownUtils.js';
+import mathUtils from './mathUtils.js';
+import stringUtils from './stringUtils.js';
+import waitUtils from './waitUtils.js';
 
 async function healthCheck() {
   logger.debug('Checking API health ...');
