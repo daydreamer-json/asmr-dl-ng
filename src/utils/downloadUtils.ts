@@ -151,7 +151,7 @@ async function singleDownload(workId: number) {
           };
         };
         await fs.promises.mkdir(
-          path.dirname(path.join(argvUtils.getArgv().outputDir, stringUtils.numberToRJIdString(workId), entryObj.path)),
+          path.dirname(path.join(argvUtils.getArgv().outputDir, stringUtils.numberToRJIdString(workId), fixFilenameOnWindows(entryObj.path))),
           {
             recursive: true,
           },
@@ -160,7 +160,7 @@ async function singleDownload(workId: number) {
         //   recursive: true,
         // });
         const writer = fs.createWriteStream(
-          path.join(argvUtils.getArgv().outputDir, stringUtils.numberToRJIdString(workId), entryObj.path),
+          path.join(argvUtils.getArgv().outputDir, stringUtils.numberToRJIdString(workId), fixFilenameOnWindows(entryObj.path)),
         );
         // const writer = fs.createWriteStream(
         //   path.join(argvUtils.getArgv().outputDir, entryObj.uuid + path.extname(entryObj.path)),
