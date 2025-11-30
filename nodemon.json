@@ -1,0 +1,11 @@
+{
+  "ignore": [".git", "node_modules/**/*"],
+  "watch": ["src/"],
+  "verbose": false,
+  "ext": "js,ts,json",
+  "execMap": {
+    "ts": "node",
+    "js": "node"
+  },
+  "restartable": "rs"
+}
