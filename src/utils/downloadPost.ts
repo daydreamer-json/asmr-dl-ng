@@ -95,7 +95,9 @@ async function calculateHashes(
             finishDataSizeGlobal,
             filesOverallSize,
             rateMeterInstRoot.getRate(),
-            argvUtils.getArgv()['thread-hash'],
+            Math.abs(queue.pending)
+              .toString()
+              .padStart(Math.floor(Math.log10(queue.concurrency)) + 1, ' '),
           );
           progBarRoot?.update(finishDataSizeGlobal, tmpRootPayload);
           progBarTitle?.update(0, tmpRootPayload);

@@ -188,7 +188,14 @@ export default {
   detectUseFancyProgBarBox,
   progBarTextFmter: {
     download: {
-      root: (cur: number, max: number, curBytes: number, maxBytes: number, speedBytes: number, threads: number) => {
+      root: (
+        cur: number,
+        max: number,
+        curBytes: number,
+        maxBytes: number,
+        speedBytes: number,
+        threads: string | number,
+      ) => {
         const fmtVB = mathUtils.formatFileSize(curBytes, fmtFileSizeDefaultCfg);
         const fmtTB = mathUtils.formatFileSize(maxBytes, fmtFileSizeDefaultCfg);
         return {
@@ -208,7 +215,7 @@ export default {
             useBitUnit: appConfig.logger.useBitUnitForSpeed,
           }),
           fmtTimeRemaining: getFmtTimeRemaining((maxBytes - curBytes) / speedBytes),
-          fmtThread: threads,
+          fmtThread: String(threads),
         };
       },
       sub: (cur: number, max: number, title: string) => ({

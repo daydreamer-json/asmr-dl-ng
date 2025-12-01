@@ -175,8 +175,7 @@ async function downloadWork(
     'utf-8',
   );
 
-  const queueConcurrency = argvUtils.getArgv()['threadNet'] ?? appConfig.threadCount.network;
-  const queue = new PQueue({ concurrency: queueConcurrency });
+  const queue = new PQueue({ concurrency: argvUtils.getArgv()['threadNet'] });
 
   const needDlFileEntry: TypesApiFiles.FilesystemEntryTransformed[] = workApiRsp.fileEntry.transformed.filter((e) =>
     selectedFilesUuid.includes(e.uuid),
@@ -198,7 +197,7 @@ async function downloadWork(
     dledDataSizeGlobal,
     filesOverallSize,
     rateMeterInstRoot.getRate(),
-    queueConcurrency,
+    0, // Initial active threads should be 0 as no downloads have started yet
   );
   const progBarTitle = progBar?.create(1, 0, progBarRootPayload, {
     format: termPrettyUtils.progBarFmtCfg.download.title,
@@ -230,7 +229,9 @@ async function downloadWork(
           dledDataSizeGlobal,
           filesOverallSize,
           rateMeterInstRoot.getRate(),
-          queueConcurrency,
+          Math.abs(queue.pending)
+            .toString()
+            .padStart(Math.floor(Math.log10(queue.concurrency)) + 1, ' '),
         );
         progBarRoot?.update(dledDataSizeGlobal, tmpRootPayload);
         progBarTitle?.update(0, tmpRootPayload);
@@ -243,8 +244,6 @@ async function downloadWork(
         let lastNonZeroRateTime = Date.now();
 
         try {
-          let lastTransferredBytes = 0;
-
           timeoutTimer = setInterval(() => {
             if (rateMeterFile.getRate() === 0) {
               if (Date.now() - lastNonZeroRateTime > appConfig.network.timeout) {
@@ -255,25 +254,31 @@ async function downloadWork(
             }
           }, 1000);
 
-          const rsp = await ky.get(fileEntry.mediaDownloadUrl, {
-            ...apiUtils.defaultKySettings,
-            signal: abortController.signal,
-            onDownloadProgress: (progress) => {
-              const delta = progress.transferredBytes - lastTransferredBytes;
-              lastTransferredBytes = progress.transferredBytes;
-              dledDataSizeGlobal += delta;
-              rateMeterInstRoot.increment(delta);
-              rateMeterFile.increment(delta);
-              dledDataSize = progress.transferredBytes;
+          const progressStream = new stream.Transform({
+            transform(chunk, _encoding, callback) {
+              dledDataSizeGlobal += chunk.length;
+              rateMeterInstRoot.increment(chunk.length);
+              rateMeterFile.increment(chunk.length);
+              dledDataSize += chunk.length;
               progBarUpdateFunc(dledDataSize);
               if (rateMeterFile.getRate() > 0) {
                 lastNonZeroRateTime = Date.now();
               }
+              this.push(chunk);
+              callback();
             },
           });
-          const nodeStream = stream.Readable.fromWeb(rsp.body as any);
-          await stream.promises.pipeline(nodeStream, fs.createWriteStream(outFilePath, { flags: 'wx' }));
-          dledDataSizeGlobal += fileEntry.size - lastTransferredBytes;
+
+          const response = await ky.get(fileEntry.mediaDownloadUrl, {
+            ...apiUtils.defaultKySettings,
+            signal: abortController.signal,
+          });
+
+          await stream.promises.pipeline(
+            stream.Readable.fromWeb(response.body as any),
+            progressStream,
+            fs.createWriteStream(outFilePath, { flags: 'wx' }),
+          );
           progBarUpdateFunc(fileEntry.size);
           dledFileEntry.push(fileEntry);
           progBarSub?.stop();
