@@ -1,7 +1,10 @@
+import { eld } from '@yutengjing/eld';
+import * as budoux from 'budoux';
 import chalk from 'chalk';
 import CliTable3 from 'cli-table3';
 import { DateTime, Duration } from 'luxon';
-import terminalLink from 'terminal-link';
+import stringWidth from 'string-width';
+import * as wakachigaki from 'wakachigaki';
 import * as TypesApiEndpoint from '../types/ApiEndpoint.js';
 import * as TypesApiFiles from '../types/ApiFiles.js';
 import appConfig from './config.js';
@@ -56,6 +59,93 @@ const fmtFileSizeDefaultCfg = {
   unit: 'M',
 } as const;
 
+function wordWrapper(str: string, width: number): string[] {
+  // 1. Google's budoux (high quality)
+  // 2. wakachigaki (medium quality),
+  // 3. force wrap
+  const langDetectResultObj: {
+    language: string;
+    getScores: () => Record<string, number>;
+    isReliable: () => boolean;
+  } = eld.detect(str);
+  const langDetectResult: string = langDetectResultObj.language === '' ? 'ja' : langDetectResultObj.language;
+  const budouxParser = {
+    ja: budoux.loadDefaultJapaneseParser(),
+    zh: budoux.loadDefaultSimplifiedChineseParser(),
+  };
+  const parseResult: string[] | null = (() => {
+    const isBudouxAvail = Object.keys(budouxParser).includes(langDetectResult);
+    if (isBudouxAvail) {
+      const budouxResult = budouxParser[langDetectResult as keyof typeof budouxParser].parse(str);
+      return budouxResult.length <= 1 && langDetectResult === 'ja' ? wakachigaki.tokenize(str) : budouxResult;
+    }
+    return null; // fallback to force wrap
+  })();
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const segment of parseResult ?? str) {
+    if (stringWidth(segment) > width) {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      let tempSegment = segment;
+      while (stringWidth(tempSegment) > width) {
+        let splitIndex = 0;
+        let currentWidth = 0;
+        for (const char of tempSegment) {
+          const charWidth = stringWidth(char);
+          if (currentWidth + charWidth > width) break;
+          currentWidth += charWidth;
+          splitIndex++;
+        }
+        lines.push(tempSegment.slice(0, splitIndex));
+        tempSegment = tempSegment.slice(splitIndex);
+      }
+      currentLine = tempSegment;
+    } else if (stringWidth(currentLine + segment) > width) {
+      lines.push(currentLine);
+      currentLine = segment;
+    } else {
+      currentLine += segment;
+    }
+  }
+  lines.push(currentLine);
+  return lines;
+}
+
+function wordWrapperSimple(strArray: string[], width: number): string[] {
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const segment of strArray) {
+    if (stringWidth(segment) > width) {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      let tempSegment = segment;
+      while (stringWidth(tempSegment) > width) {
+        let splitIndex = 0;
+        let currentWidth = 0;
+        for (const char of tempSegment) {
+          const charWidth = stringWidth(char);
+          if (currentWidth + charWidth > width) break;
+          currentWidth += charWidth;
+          splitIndex++;
+        }
+        lines.push(tempSegment.slice(0, splitIndex));
+        tempSegment = tempSegment.slice(splitIndex);
+      }
+      currentLine = tempSegment;
+    } else if (stringWidth(currentLine + segment) > width) {
+      lines.push(currentLine);
+      currentLine = segment;
+    } else {
+      currentLine += segment;
+    }
+  }
+  lines.push(currentLine);
+  return lines;
+}
+
 function printWorkInfo(workApiRsp: {
   info: TypesApiEndpoint.RspWorkInfoSanitized;
   fileEntry: {
@@ -64,25 +154,44 @@ function printWorkInfo(workApiRsp: {
   };
 }): string {
   const table = new CliTable3(cliTableConfig.rounded);
+  const availableMaxTextWidth = Math.min(54, process.stdout.columns - 20);
+
+  const tmpObj = {
+    dlCount: workApiRsp.info.dl_count.toLocaleString(),
+    price: workApiRsp.info.price.toLocaleString(),
+    totalSales: (workApiRsp.info.price * workApiRsp.info.dl_count).toLocaleString(),
+    totalSize: mathUtils.formatFileSize(
+      mathUtils.arrayTotal(workApiRsp.fileEntry.transformed.map((e) => e.size)),
+      fmtFileSizeDefaultCfg,
+    ),
+  };
+
   table.push(
     ...[
-      ['ID', terminalLink(workApiRsp.info.source_id, workApiRsp.info.source_url, { fallback: false })],
-      ['Title', workApiRsp.info.title],
+      ['ID', workApiRsp.info.source_id],
+      ['Title', wordWrapper(workApiRsp.info.title, availableMaxTextWidth).join('\n')],
       // ['Circle ID', workApiRsp.info.circle.source_id],
-      [
-        'Circle Name',
-        terminalLink(
-          workApiRsp.info.circle.name,
-          `https://www.dlsite.com/maniax/circle/profile/=/maker_id/${workApiRsp.info.circle.source_id}.html`,
-          { fallback: false },
-        ),
-      ],
+      ['Circle Name', wordWrapper(workApiRsp.info.circle.name, availableMaxTextWidth).join('\n')],
       [
         'VA Name',
-        workApiRsp.info.vas
-          .map((e) => e.name)
-          .join(', ')
-          .replace(/^N\/A$/g, chalk.dim('(none)')),
+        wordWrapperSimple(
+          workApiRsp.info.vas
+            .map((e) => e.name.replace(/^N\/A$/g, chalk.dim('(none)')))
+            .map((s, i, arr) => (i === arr.length - 1 ? s : s + ', ')),
+          availableMaxTextWidth,
+        ).join('\n'),
+      ],
+      [
+        'Tags',
+        wordWrapperSimple(
+          workApiRsp.info.tags
+            .map((e) => {
+              if (e.i18n && e.i18n['ja-jp'] && e.i18n['ja-jp'].name) return e.i18n['ja-jp'].name;
+              return e.name;
+            })
+            .map((s, i, arr) => (i === arr.length - 1 ? s : s + ', ')),
+          availableMaxTextWidth,
+        ).join('\n'),
       ],
       ['Release Date', DateTime.fromISO(workApiRsp.info.release).toFormat('yyyy/MM/dd')],
       ['Created Date', DateTime.fromISO(workApiRsp.info.create_date).toFormat('yyyy/MM/dd')],
@@ -97,14 +206,18 @@ function printWorkInfo(workApiRsp: {
           workApiRsp.info.age_category_string,
         ),
       ],
-      ['DL Count', workApiRsp.info.dl_count.toLocaleString()],
-      ['Price', workApiRsp.info.price.toLocaleString() + ' JPY'],
+      ['DL Count', tmpObj.dlCount.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ')],
+      ['Price', tmpObj.price.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') + ' JPY'],
       [
-        'Total size',
-        mathUtils.formatFileSize(
-          mathUtils.arrayTotal(workApiRsp.fileEntry.transformed.map((e) => e.size)),
-          fmtFileSizeDefaultCfg,
-        ) + ' MiB',
+        'Total Sales',
+        tmpObj.totalSales.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') + ' JPY',
+      ],
+      [
+        'Total Size',
+        tmpObj.totalSize.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') +
+          ' MiB (' +
+          workApiRsp.fileEntry.transformed.length +
+          ' files)',
       ],
     ].map((e) => [chalk.dim(e[0]), e[1]]),
   );
