@@ -73,12 +73,19 @@ async function calculateHashes(
       const filePath = path.join(tempOutputDirPath, fileEntry.uuid);
 
       let finishDataSize = 0;
-      const progBarSub = progBar?.create(
-        fileEntry.size,
-        finishDataSize,
-        termPrettyUtils.progBarTextFmter.download.sub(finishDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
-        { format: termPrettyUtils.progBarFmtCfg.download.sub },
-      );
+      const progBarSub =
+        process.stdout.rows > queue.concurrency + 3
+          ? progBar?.create(
+              fileEntry.size,
+              finishDataSize,
+              termPrettyUtils.progBarTextFmter.download.sub(
+                finishDataSize,
+                fileEntry.size,
+                fileEntry.path.at(-1) ?? '',
+              ),
+              { format: termPrettyUtils.progBarFmtCfg.download.sub },
+            )
+          : undefined;
 
       await new Promise<void>((resolve, reject) => {
         // Import the worker script as text and create a Blob URL

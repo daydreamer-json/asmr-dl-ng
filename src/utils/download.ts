@@ -212,12 +212,15 @@ async function downloadWork(
       const outFilePath = path.join(tempOutputDirPath, fileEntry.uuid);
       let dledDataSize = 0; // bytes
       let retriedCount = 0;
-      const progBarSub = progBar?.create(
-        fileEntry.size,
-        dledDataSize,
-        termPrettyUtils.progBarTextFmter.download.sub(dledDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
-        { format: termPrettyUtils.progBarFmtCfg.download.sub },
-      );
+      const progBarSub =
+        process.stdout.rows > queue.concurrency + 3
+          ? progBar?.create(
+              fileEntry.size,
+              dledDataSize,
+              termPrettyUtils.progBarTextFmter.download.sub(dledDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+              { format: termPrettyUtils.progBarFmtCfg.download.sub },
+            )
+          : undefined;
       const progBarUpdateFunc = (subCurrent: number) => {
         progBarSub?.update(
           subCurrent,
