@@ -48,6 +48,9 @@ async function downloadMeta(workId: number) {
         if (error.response.status === 404) {
           logger.error(`Work not found. Please check the ID and try again. ID: ${workId}`);
           await exitUtils.exit(1, null, false);
+        } else if (error.response.status === 525) {
+          logger.error(`Failed to download metadata: 525 Cloudflare SSL handshake failed`);
+          await exitUtils.exit(1, null, false);
         }
         logger.error(`Failed to download metadata: ${error.response.status} ${error.response.statusText}`);
         await exitUtils.exit(1, null, false);
@@ -172,7 +175,8 @@ async function downloadWork(
     'utf-8',
   );
 
-  const queue = new PQueue({ concurrency: argvUtils.getArgv()['threadNet'] });
+  const queueConcurrency = argvUtils.getArgv()['threadNet'] ?? appConfig.threadCount.network;
+  const queue = new PQueue({ concurrency: queueConcurrency });
 
   const needDlFileEntry: TypesApiFiles.FilesystemEntryTransformed[] = workApiRsp.fileEntry.transformed.filter((e) =>
     selectedFilesUuid.includes(e.uuid),
@@ -194,7 +198,7 @@ async function downloadWork(
     dledDataSizeGlobal,
     filesOverallSize,
     rateMeterInstRoot.getRate(),
-    argvUtils.getArgv()['threadNet'],
+    queueConcurrency,
   );
   const progBarTitle = progBar?.create(1, 0, progBarRootPayload, {
     format: termPrettyUtils.progBarFmtCfg.download.title,
@@ -226,7 +230,7 @@ async function downloadWork(
           dledDataSizeGlobal,
           filesOverallSize,
           rateMeterInstRoot.getRate(),
-          argvUtils.getArgv()['threadNet'],
+          queueConcurrency,
         );
         progBarRoot?.update(dledDataSizeGlobal, tmpRootPayload);
         progBarTitle?.update(0, tmpRootPayload);
@@ -267,7 +271,7 @@ async function downloadWork(
               }
             },
           });
-          const nodeStream = stream.Readable.fromWeb(rsp.body as ReadableStream<Uint8Array>);
+          const nodeStream = stream.Readable.fromWeb(rsp.body as any);
           await stream.promises.pipeline(nodeStream, fs.createWriteStream(outFilePath, { flags: 'wx' }));
           dledDataSizeGlobal += fileEntry.size - lastTransferredBytes;
           progBarUpdateFunc(fileEntry.size);
@@ -329,15 +333,17 @@ async function downloadWork(
           info: workApiRsp.info,
           coverImage: Object.fromEntries(Object.entries(workApiRsp.coverImgBuffer).map((e) => [e[0], e[1] !== null])),
           fileEntry: (() => {
-            return workApiRsp.fileEntry.transformed.map((e) => {
-              if (e.type === 'audio') {
-                const { mediaStreamUrl, mediaDownloadUrl, streamLowQualityUrl, ...rest } = e;
-                return rest;
-              } else {
-                const { mediaStreamUrl, mediaDownloadUrl, ...rest } = e;
-                return rest;
-              }
-            });
+            return workApiRsp.fileEntry.transformed
+              .toSorted((a, b) => (a.path.join('/') > b.path.join('/') ? 1 : -1))
+              .map((e) => {
+                if (e.type === 'audio') {
+                  const { mediaStreamUrl, mediaDownloadUrl, streamLowQualityUrl, ...rest } = e;
+                  return rest;
+                } else {
+                  const { mediaStreamUrl, mediaDownloadUrl, ...rest } = e;
+                  return rest;
+                }
+              });
           })(),
           downloadedFiles: selectedFilesUuid,
           hash: calculatedHashesArray,
@@ -348,6 +354,7 @@ async function downloadWork(
       await fs.promises.writeFile(
         path.join(tempOutputDirPath, 'meta_hashes.tsv'),
         calculatedHashesArray
+          .toSorted((a, b) => (a.path.join('/') > b.path.join('/') ? 1 : -1))
           .map(
             (e) =>
               `${e.uuid}\t${e.hash.sha256}\t${e.hash.sha384}\t${e.hash.sha512}\t${e.hash['sha3-512']}\t${JSON.stringify(e.path)}`,

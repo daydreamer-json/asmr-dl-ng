@@ -1,6 +1,14 @@
 import fs from 'node:fs';
 import configEmbed from './utils/configEmbed.js';
 
+fs.writeFileSync(
+  'dist/utils/downloadPost.js',
+  fs
+    .readFileSync('dist/utils/downloadPost.js', 'utf-8')
+    .replace('{{{HASH_WORKER_PLACEHOLDER}}}', fs.readFileSync('dist/utils/hashWorker.js', 'utf-8')),
+  'utf-8',
+);
+
 const packageJsonData = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
 packageJsonData.name = configEmbed.APPLICATION_NAME;
 packageJsonData.version = configEmbed.VERSION_NUMBER;

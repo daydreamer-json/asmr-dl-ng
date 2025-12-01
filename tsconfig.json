@@ -1,17 +1,14 @@
 {
   "extends": [
+    // "@tsconfig/bun",
     "@tsconfig/recommended",
     "@tsconfig/node24",
     "@tsconfig/strictest"
   ],
   "compilerOptions": {
     "outDir": "./dist",
-    "sourceMap": true,
+    "sourceMap": false,
     "forceConsistentCasingInFileNames": true
-
-    // "module": "CommonJS",
-    // "moduleResolution": "node",
-    // "esModuleInterop": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

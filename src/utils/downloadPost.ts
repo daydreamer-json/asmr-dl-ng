@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import cliProgress from 'cli-progress';
@@ -29,13 +28,17 @@ async function calculateHashes(
 ) {
   logger.info('Calculating file hashes ...');
 
+  // Worker script is hardcoded here to avoid bun build issue
+  const workerScript = `{{{HASH_WORKER_PLACEHOLDER}}}`;
+  const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(workerBlob);
   const tempOutputDirPath = path.resolve(path.join(argvUtils.getArgv()['outputDir'], workOverallUuid));
   const results: {
     path: string[];
     uuid: string;
     hash: Record<'sha256' | 'sha384' | 'sha512' | 'sha3-512', string>;
   }[] = [];
-
+  const hashAlgorithms = ['sha256', 'sha384', 'sha512', 'sha3-512'];
   const queue = new PQueue({ concurrency: argvUtils.getArgv()['thread-hash'] });
 
   const needCalcFileEntry: TypesApiFiles.FilesystemEntryTransformed[] = workApiRsp.fileEntry.transformed.filter((e) =>
@@ -68,62 +71,76 @@ async function calculateHashes(
   needCalcFileEntry.forEach((fileEntry) => {
     queue.add(async () => {
       const filePath = path.join(tempOutputDirPath, fileEntry.uuid);
-      const fileStream = fs.createReadStream(filePath);
 
-      let finishDataSize = 0; // bytes
-      // const progBarSub = progBar.create(
-      //   fileEntry.size,
-      //   finishDataSize,
-      //   termPrettyUtils.progBarTextFmter.download.sub(finishDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
-      //   { format: termPrettyUtils.progBarFmtCfg.download.sub },
-      // );
-      const progBarUpdateFunc = (_subCurrent: number) => {
-        // progBarSub?.update(
-        //   subCurrent,
-        //   termPrettyUtils.progBarTextFmter.download.sub(subCurrent, fileEntry.size, fileEntry.path.at(-1) ?? ''),
-        // );
-        const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
-          results.length,
-          needCalcFileEntry.length,
-          finishDataSizeGlobal,
-          filesOverallSize,
-          rateMeterInstRoot.getRate(),
-          argvUtils.getArgv()['thread-hash'],
-        );
-        progBarRoot?.update(finishDataSizeGlobal, tmpRootPayload);
-        progBarTitle?.update(0, tmpRootPayload);
-      };
-
-      const hashAlgorithms = ['sha256', 'sha384', 'sha512', 'sha3-512'];
-      const hashes: { [key: string]: crypto.Hash } = {};
-      hashAlgorithms.forEach((alg) => {
-        hashes[alg] = crypto.createHash(alg);
-      });
+      let finishDataSize = 0;
+      const progBarSub = progBar?.create(
+        fileEntry.size,
+        finishDataSize,
+        termPrettyUtils.progBarTextFmter.download.sub(finishDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+        { format: termPrettyUtils.progBarFmtCfg.download.sub },
+      );
 
       await new Promise<void>((resolve, reject) => {
-        fileStream.on('data', (chunk) => {
-          const chunkSize = chunk.length;
-          finishDataSize += chunkSize;
-          finishDataSizeGlobal += chunkSize;
-          rateMeterInstRoot.increment(chunkSize);
-          hashAlgorithms.forEach((alg) => hashes[alg]!.update(chunk));
-          progBarUpdateFunc(finishDataSize);
+        // Import the worker script as text and create a Blob URL
+        // to ensure it's bundled into the final executable.
+        const worker = new Worker(workerUrl);
+        const progBarUpdateFunc = (subCurrent: number) => {
+          progBarSub?.update(
+            subCurrent,
+            termPrettyUtils.progBarTextFmter.download.sub(subCurrent, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+          );
+          const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
+            results.length,
+            needCalcFileEntry.length,
+            finishDataSizeGlobal,
+            filesOverallSize,
+            rateMeterInstRoot.getRate(),
+            argvUtils.getArgv()['thread-hash'],
+          );
+          progBarRoot?.update(finishDataSizeGlobal, tmpRootPayload);
+          progBarTitle?.update(0, tmpRootPayload);
+        };
+
+        worker.onmessage = (
+          event: MessageEvent<
+            | { type: 'progress'; chunk_size: number }
+            | { type: 'done'; result: Record<'sha256' | 'sha384' | 'sha512' | 'sha3-512', string> }
+            | { type: 'error'; error: { message: string; stack?: string } }
+          >,
+        ) => {
+          const data = event.data;
+          switch (data.type) {
+            case 'progress':
+              finishDataSizeGlobal += data.chunk_size;
+              finishDataSize += data.chunk_size;
+              rateMeterInstRoot.increment(data.chunk_size);
+              progBarUpdateFunc(finishDataSize);
+              break;
+            case 'done':
+              results.push({ path: fileEntry.path, uuid: fileEntry.uuid, hash: data.result });
+              progBarUpdateFunc(fileEntry.size);
+              progBarSub?.stop();
+              progBar?.remove(progBarSub!);
+              resolve();
+              break;
+            case 'error':
+              console.error(`Worker error for ${fileEntry.path.join('/')}:`, data.error);
+              reject(new Error(`Worker error for ${fileEntry.path.join('/')}: ${data.error.message}`));
+              break;
+          }
+        };
+
+        worker.onerror = (err) => {
+          // This catches errors that prevent the worker script from loading or executing.
+          console.error(`A critical error occurred in the worker for ${fileEntry.path.join('/')}:`, err);
+          reject(new Error(`Worker failed for ${fileEntry.path.join('/')}: ${err.message}`));
+        };
+
+        worker.postMessage({
+          filePath,
+          algorithms: hashAlgorithms,
         });
-        fileStream.on('end', resolve);
-        fileStream.on('error', reject);
       });
-
-      const calculatedHashes: { [key: string]: string } = {};
-      hashAlgorithms.forEach((alg) => {
-        calculatedHashes[alg] = hashes[alg]!.digest('hex');
-      });
-
-      results.push({ path: fileEntry.path, uuid: fileEntry.uuid, hash: calculatedHashes as any });
-
-      finishDataSizeGlobal += fileEntry.size - finishDataSize;
-      progBarUpdateFunc(fileEntry.size);
-      // progBarSub?.stop();
-      // progBar?.remove(progBarSub);
     });
   });
 

@@ -13,13 +13,13 @@
   },
   "scripts": {
     "format": "bun x biome format --write src",
-    "start": "bun x biome format --write src && bun x parcel build src/main.ts && bun run dist/main.js",
-    "compile": "bun x biome format --write src && bun x parcel build src/main.ts",
-    "build": "bun x biome format --write src && bun x parcel build src/main.ts && bun run src/prebuild.ts && bun build --compile --minify --target=bun-windows-x64-baseline dist/main.js --outfile asmr-dl-ng.exe"
+    "start": "bun x biome format --write src && tsc && bun run src/prebuild.ts && bun run dist/main.js",
+    "build": "bun x biome format --write src && tsc && bun run src/prebuild.ts && bun build --compile --minify --target=bun-windows-x64-baseline dist/main.js --outfile asmr-dl-ng.exe"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",
     "@parcel/transformer-typescript-tsc": "^2.16.1",
+    "@tsconfig/bun": "^1.0.10",
     "@tsconfig/node24": "^24.0.3",
     "@tsconfig/recommended": "^1.0.13",
     "@tsconfig/strictest": "^2.0.8",
