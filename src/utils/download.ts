@@ -212,19 +212,30 @@ async function downloadWork(
       const outFilePath = path.join(tempOutputDirPath, fileEntry.uuid);
       let dledDataSize = 0; // bytes
       let retriedCount = 0;
+      const rateMeterFile = new rateMeterUtils.RateMeter(1000 * rateMeterAvgFactor, true);
       const progBarSub =
         process.stdout.rows > queue.concurrency + 3
           ? progBar?.create(
               fileEntry.size,
               dledDataSize,
-              termPrettyUtils.progBarTextFmter.download.sub(dledDataSize, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+              termPrettyUtils.progBarTextFmter.download.sub(
+                dledDataSize,
+                fileEntry.size,
+                rateMeterFile.getRate(),
+                fileEntry.path.at(-1) ?? '',
+              ),
               { format: termPrettyUtils.progBarFmtCfg.download.sub },
             )
           : undefined;
       const progBarUpdateFunc = (subCurrent: number) => {
         progBarSub?.update(
           subCurrent,
-          termPrettyUtils.progBarTextFmter.download.sub(subCurrent, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+          termPrettyUtils.progBarTextFmter.download.sub(
+            subCurrent,
+            fileEntry.size,
+            rateMeterFile.getRate(),
+            fileEntry.path.at(-1) ?? '',
+          ),
         );
         const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
           dledFileEntry.length,
@@ -242,20 +253,17 @@ async function downloadWork(
 
       while (retriedCount <= appConfig.network.retryCount) {
         const abortController = new AbortController();
-        const rateMeterFile = new rateMeterUtils.RateMeter(1000, true);
         let timeoutTimer: NodeJS.Timeout | null = null;
         let lastNonZeroRateTime = Date.now();
-
+        rateMeterFile.reset();
         try {
           timeoutTimer = setInterval(() => {
-            if (rateMeterFile.getRate() === 0) {
-              if (Date.now() - lastNonZeroRateTime > appConfig.network.timeout) {
-                abortController.abort(new Error('Download timeout due to zero speed'));
-              }
-            } else {
-              lastNonZeroRateTime = Date.now();
+            rateMeterFile.increment(0);
+            progBarUpdateFunc(dledDataSize);
+            if (Date.now() - lastNonZeroRateTime > appConfig.network.timeout) {
+              abortController.abort();
             }
-          }, 1000);
+          }, 250);
 
           const progressStream = new stream.Transform({
             transform(chunk, _encoding, callback) {
@@ -264,9 +272,7 @@ async function downloadWork(
               rateMeterFile.increment(chunk.length);
               dledDataSize += chunk.length;
               progBarUpdateFunc(dledDataSize);
-              if (rateMeterFile.getRate() > 0) {
-                lastNonZeroRateTime = Date.now();
-              }
+              lastNonZeroRateTime = Date.now();
               this.push(chunk);
               callback();
             },
@@ -281,6 +287,7 @@ async function downloadWork(
             stream.Readable.fromWeb(response.body as any),
             progressStream,
             fs.createWriteStream(outFilePath, { flags: 'wx' }),
+            { signal: abortController.signal },
           );
           progBarUpdateFunc(fileEntry.size);
           dledFileEntry.push(fileEntry);
@@ -307,6 +314,7 @@ async function downloadWork(
           //   `Download failed, retrying... (${retriedCount}/${appConfig.network.retryCount}): ${fileEntry.path.join('/')}`,
           // );
           dledDataSizeGlobal -= dledDataSize;
+          dledDataSize = 0;
         }
 
         if (timeoutTimer) clearInterval(timeoutTimer);

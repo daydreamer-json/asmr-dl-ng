@@ -287,7 +287,7 @@ function detectUseFancyProgBarBox(): Record<'fancy' | 'shade', boolean> {
 }
 
 const getFmtTimeRemaining = (seconds: number): string => {
-  seconds = Math.ceil(seconds);
+  seconds = !Number.isFinite(seconds) || Number.isNaN(seconds) ? 0 : Math.ceil(seconds);
   if (seconds >= 86400) return '--:--:--';
   const parsed = Duration.fromObject({ seconds });
   if (seconds >= 3600) return parsed.toFormat('HH:mm:ss');
@@ -323,15 +323,17 @@ export default {
           fmtTotalBytes: fmtTB.padStart(fmtTB.length, ' '),
           fmtValueFileCount: String(cur).padStart(String(max).length, ' '),
           fmtTotalFileCount: String(max).padStart(String(max).length, ' '),
-          fmtSpeed: mathUtils.formatFileSize(speedBytes, {
-            ...fmtFileSizeDefaultCfg,
-            useBitUnit: appConfig.logger.useBitUnitForSpeed,
-          }),
+          fmtSpeed: mathUtils
+            .formatFileSize(speedBytes, {
+              ...fmtFileSizeDefaultCfg,
+              useBitUnit: appConfig.logger.useBitUnitForSpeed,
+            })
+            .padStart(6, ' '),
           fmtTimeRemaining: getFmtTimeRemaining((maxBytes - curBytes) / speedBytes),
           fmtThread: String(threads),
         };
       },
-      sub: (cur: number, max: number, title: string) => ({
+      sub: (cur: number, max: number, speed: number, title: string) => ({
         fmtBar: generateProgBarBox(
           cur,
           max,
@@ -341,6 +343,12 @@ export default {
         fmtPct: cur >= max ? '100.00' : mathUtils.rounder('ceil', ((cur ?? 0) / max) * 100, 2).padded.padStart(6, ' '),
         fmtValue: mathUtils.formatFileSize(cur, fmtFileSizeDefaultCfg).padStart(7, ' '),
         fmtTotal: mathUtils.formatFileSize(max, fmtFileSizeDefaultCfg).padStart(7, ' '),
+        fmtSpeed: mathUtils
+          .formatFileSize(speed, {
+            ...fmtFileSizeDefaultCfg,
+            useBitUnit: appConfig.logger.useBitUnitForSpeed,
+          })
+          .padStart(6, ' '),
         fmtTitle: title, // todo: length limit, etc.
       }),
     },
@@ -390,7 +398,9 @@ export default {
         chalk.dim(`/`),
         chalk.cyan('{fmtTotal}'),
         chalk.dim(`MiB │`),
-        '{fmtTitle}',
+        // '{fmtTitle}',
+        chalk.cyan('{fmtSpeed}'),
+        chalk.dim(appConfig.logger.useBitUnitForSpeed ? 'Mbps' : 'MiB/s'),
       ].join(' '),
     },
   },

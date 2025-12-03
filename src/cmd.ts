@@ -30,7 +30,7 @@ async function parseCommand() {
   const yargsInstance = yargs(hideBin(process.argv));
   await yargsInstance
     .command(
-      ['download [id]', 'dl'],
+      ['download [id...]', 'dl'],
       'Download work',
       (yargs) => {
         yargs
@@ -104,7 +104,7 @@ async function parseCommand() {
       wrapHandler(cmds.download),
     )
     .command(
-      ['info [id]'],
+      ['info [id...]'],
       'Show metadata of work',
       (yargs) => {
         yargs

@@ -14,9 +14,14 @@ type AllRequired<T> = Required<{
 type ConfigType = AllRequired<
   Freeze<{
     file: {
+      // Output root directory
       outputDirPath: string;
+      // Naming convention for subfolders generated within the outputDirPath
       outputDirPattern: string;
+      // When set to true, the file selection prompt before download is skipped, and the filterRegex is automatically applied
       useAutoFilterRegex: boolean;
+      // Regular expressions used to efficiently specify files to download
+      // Files are selected where the path matches at least one include and does not match any excludes
       filterRegex: {
         include: string[];
         exclude: string[];

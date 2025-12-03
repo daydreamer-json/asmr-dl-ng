@@ -28,7 +28,7 @@ async function calculateHashes(
 ) {
   logger.info('Calculating file hashes ...');
 
-  // Worker script is hardcoded here to avoid bun build issue
+  //! Worker script is hardcoded here to avoid bun build issue
   const workerScript = `{{{HASH_WORKER_PLACEHOLDER}}}`;
   const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
   const workerUrl = URL.createObjectURL(workerBlob);
@@ -73,6 +73,7 @@ async function calculateHashes(
       const filePath = path.join(tempOutputDirPath, fileEntry.uuid);
 
       let finishDataSize = 0;
+      const rateMeterFile = new rateMeterUtils.RateMeter(1000 * rateMeterAvgFactor, true);
       const progBarSub =
         process.stdout.rows > queue.concurrency + 3
           ? progBar?.create(
@@ -81,6 +82,7 @@ async function calculateHashes(
               termPrettyUtils.progBarTextFmter.download.sub(
                 finishDataSize,
                 fileEntry.size,
+                rateMeterFile.getRate(),
                 fileEntry.path.at(-1) ?? '',
               ),
               { format: termPrettyUtils.progBarFmtCfg.download.sub },
@@ -94,7 +96,12 @@ async function calculateHashes(
         const progBarUpdateFunc = (subCurrent: number) => {
           progBarSub?.update(
             subCurrent,
-            termPrettyUtils.progBarTextFmter.download.sub(subCurrent, fileEntry.size, fileEntry.path.at(-1) ?? ''),
+            termPrettyUtils.progBarTextFmter.download.sub(
+              subCurrent,
+              fileEntry.size,
+              rateMeterFile.getRate(),
+              fileEntry.path.at(-1) ?? '',
+            ),
           );
           const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
             results.length,
@@ -123,6 +130,7 @@ async function calculateHashes(
               finishDataSizeGlobal += data.chunk_size;
               finishDataSize += data.chunk_size;
               rateMeterInstRoot.increment(data.chunk_size);
+              rateMeterFile.increment(data.chunk_size);
               progBarUpdateFunc(finishDataSize);
               break;
             case 'done':

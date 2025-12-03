@@ -1,7 +1,7 @@
 @echo off&cd /d %~dp0
 
 set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-set VERSION_NUM=1.0.1
+set VERSION_NUM=1.0.2
 
 mkdir build\asmr-dl-ng
 @rem xcopy bin build\asmr-dl-ng\bin /E /I /Q

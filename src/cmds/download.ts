@@ -9,7 +9,7 @@ import logger from '../utils/logger.js';
 import termPrettyUtils from '../utils/termPretty.js';
 
 async function mainCmdHandler() {
-  if (!('id' in argvUtils.getArgv())) {
+  if (!('id' in argvUtils.getArgv()) || argvUtils.getArgv()['id'].length === 0) {
     logger.warn('Work ID has not been specified. Requesting ...');
     const idRsp: number = (
       await prompts(
@@ -22,30 +22,32 @@ async function mainCmdHandler() {
         },
       )
     ).value;
-    argvUtils.setArgv({ ...argvUtils.getArgv(), id: idRsp });
+    argvUtils.setArgv({ ...argvUtils.getArgv(), id: [idRsp] });
   }
   apiUtils.setBaseUri(argvUtils.getArgv()['server'] as TypesApi.ServerName);
 
-  await (async () => {
-    const spinner = !argvUtils.getArgv()['no-show-progress']
-      ? ora({ text: 'Checking API health ...', color: 'cyan', spinner: 'dotsCircle' }).start()
-      : undefined;
-    const apiHealthRsp = await apiUtils.api.health();
-    spinner?.stop();
-    if (apiHealthRsp.available === true) {
-      logger.info('API health check succeeded');
-    } else {
-      throw new Error('API health check failed');
-    }
-  })();
+  for (const workId of argvUtils.getArgv()['id']) {
+    await (async () => {
+      const spinner = !argvUtils.getArgv()['no-show-progress']
+        ? ora({ text: 'Checking API health ...', color: 'cyan', spinner: 'dotsCircle' }).start()
+        : undefined;
+      const apiHealthRsp = await apiUtils.api.health();
+      spinner?.stop();
+      if (apiHealthRsp.available === true) {
+        logger.info('API health check succeeded');
+      } else {
+        throw new Error('API health check failed');
+      }
+    })();
 
-  const workApiRsp = await downloadUtils.downloadMeta(argvUtils.getArgv()['id']);
+    const workApiRsp = await downloadUtils.downloadMeta(workId);
 
-  console.log(termPrettyUtils.printWorkInfo(workApiRsp));
+    console.log(termPrettyUtils.printWorkInfo(workApiRsp));
 
-  const selectedFilesUuid = await downloadUtils.filterFileEntry(workApiRsp.fileEntry.transformed);
+    const selectedFilesUuid = await downloadUtils.filterFileEntry(workApiRsp.fileEntry.transformed);
 
-  await downloadUtils.downloadWork(workApiRsp, selectedFilesUuid);
+    await downloadUtils.downloadWork(workApiRsp, selectedFilesUuid);
+  }
 }
 
 export default mainCmdHandler;

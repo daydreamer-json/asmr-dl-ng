@@ -16,6 +16,7 @@ type ConfigType = AllRequired<
   Freeze<{
     network: {
       asmrApi: {
+        // all values are base64
         baseDomain: {
           latest: string;
           original: string;
@@ -84,7 +85,7 @@ const initialConfig: ConfigType = {
   },
   threadCount: {
     network: 8,
-    hashing: 32,
+    hashing: 16,
   },
   cli: {
     autoExit: false,
