@@ -1,5 +1,5 @@
 #define MyAppName "asmr-dl-ng"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "daydreamer-json"
 #define MyAppURL "https://github.com/daydreamer-json/asmr-dl-ng"
 #define MyAppExeName "asmr-dl-ng.exe"
@@ -13,6 +13,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+AppCopyright=(C) {#MyAppPublisher} and contributors
 DefaultDirName={autopf}\{#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; "ArchitecturesAllowed=x64compatible" specifies that Setup cannot run
@@ -33,6 +34,7 @@ OutputDir=D:\Applications\GitHub\Repository\asmr-dl-ng\build
 OutputBaseFilename=asmr-dl-ng_win_x64_{#MyAppVersion}_setup
 SolidCompression=yes
 WizardStyle=modern dynamic windows11
+ChangesEnvironment=true
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -65,84 +67,82 @@ Name: "tamil"; MessagesFile: "compiler:Languages\Tamil.isl"
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 
+[Tasks]
+Name: "AddToPath"; Description: "Add app directory to PATH environment variable"; Flags: checkedonce
+
 [Files]
 Source: "D:\Applications\GitHub\Repository\asmr-dl-ng\build\asmr-dl-ng\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "D:\Applications\GitHub\Repository\asmr-dl-ng\build\asmr-dl-ng\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-[Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+; [Icons]
+; Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 
 [Registry]
 ; Add the application's directory to the user's PATH
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath(ExpandConstant('{app}'))
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: (not IsAdminInstallMode) and WizardIsTaskSelected('AddToPath') and NeedsAddPath('{app}')
 ; Add the application's directory to the system's PATH if installing for all users
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: IsAdminInstallMode and NeedsAddPath(ExpandConstant('{app}'))
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: IsAdminInstallMode and WizardIsTaskSelected('AddToPath') and NeedsAddPath('{app}')
 
 [Code]
+function NeedsAddPath(Param: string): boolean;
 var
-  PathNeedsUpdate: boolean;
-
-function InitializeSetup(): Boolean;
+  OrigPath: string;
+  ParamExpanded: string;
 begin
-  PathNeedsUpdate := false;
-  Result := true;
+  ParamExpanded := ExpandConstant(Param);
+  
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    'Path', OrigPath)
+  then begin
+    Result := True;
+    exit;
+  end;
+  
+  Result := Pos(';' + UpperCase(ParamExpanded) + ';', ';' + UpperCase(OrigPath) + ';') = 0;
+  
+  if Result = True then
+    Result := Pos(';' + UpperCase(ParamExpanded) + '\;', ';' + UpperCase(OrigPath) + ';') = 0;
 end;
 
-function StrSplit(Text: String; Separator: String): TArrayOfString;
+procedure RemovePath(RootKey: Integer; SubKey, ValueName, PathToRemove: string);
 var
-  i, p: Integer;
-  Dest: TArrayOfString;
+  Paths: string;
+  P: Integer;
 begin
-  i := 0;
-  repeat
-    SetArrayLength(Dest, i + 1);
-    p := Pos(Separator, Text);
-    if p > 0 then
+  if not RegQueryStringValue(RootKey, SubKey, ValueName, Paths) then
+    Exit;
+
+  P := Pos(';' + UpperCase(PathToRemove) + ';', ';' + UpperCase(Paths) + ';');
+  if P = 0 then
+  begin
+    P := Pos(';' + UpperCase(PathToRemove) + '\;', ';' + UpperCase(Paths) + ';');
+  end;
+
+  if P > 0 then
+  begin
+    StringChangeEx(Paths, ';' + PathToRemove + ';', ';', True);
+    StringChangeEx(Paths, PathToRemove + ';', '', True);
+    StringChangeEx(Paths, ';' + PathToRemove, '', True);
+    RegWriteExpandStringValue(RootKey, SubKey, ValueName, Paths);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppPath: string;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    AppPath := ExpandConstant('{app}');
+    
+    if IsAdminInstallMode then
     begin
-      Dest[i] := Copy(Text, 1, p - 1);
-      Text := Copy(Text, p + Length(Separator), Length(Text));
-      i := i + 1;
+      RemovePath(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', AppPath);
     end
     else
     begin
-      Dest[i] := Text;
-      Text := '';
-    end;
-  until Length(Text) = 0;
-  Result := Dest;
-end;
-
-function NeedsAddPath(Param: string): boolean;
-var
-  OldPath: string;
-  OldPathArr: TArrayOfString;
-  I: Integer;
-  Exists: boolean;
-begin
-  if not RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', OldPath) then
-  begin
-    if not RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', OldPath) then
-    begin
-      OldPath := '';
+      RemovePath(HKEY_CURRENT_USER, 'Environment', 'Path', AppPath);
     end;
   end;
-
-  // Normalize the path to remove any trailing backslash
-  if (Length(Param) > 0) and (Param[Length(Param)] = '\') then
-    Param := Copy(Param, 1, Length(Param) - 1);
-
-  Exists := false;
-  OldPathArr := StrSplit(OldPath, ';');
-  for I := 0 to GetArrayLength(OldPathArr) - 1 do
-  begin
-    if CompareText(OldPathArr[I], Param) = 0 then
-    begin
-      Exists := true;
-      break;
-    end;
-  end;
-
-  Result := not Exists;
-  if Result then
-    PathNeedsUpdate := true;
 end;

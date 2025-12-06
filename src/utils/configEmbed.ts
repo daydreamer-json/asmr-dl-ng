@@ -2,5 +2,5 @@ import semver from 'semver';
 
 export default {
   APPLICATION_NAME: 'asmr-dl-ng',
-  VERSION_NUMBER: semver.valid('1.0.2'),
+  VERSION_NUMBER: semver.valid('1.0.3'),
 };
