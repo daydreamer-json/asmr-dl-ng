@@ -58,6 +58,9 @@ type ConfigType = AllRequired<
         clearOnComplete: boolean;
       };
     };
+    updateChecker: {
+      useUpdateChecker: boolean;
+    };
   }>
 >;
 
@@ -103,6 +106,9 @@ const initialConfig: ConfigType = {
       fps: 10,
       clearOnComplete: true,
     },
+  },
+  updateChecker: {
+    useUpdateChecker: true,
   },
 };
 

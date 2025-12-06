@@ -1,9 +1,9 @@
-// import path from 'node:path';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import cmds from './cmds.js';
 import * as TypesApi from './types/Api.js';
 import * as TypesLogLevels from './types/LogLevels.js';
+import updaterUtils from './updater/updater.js';
 import argvUtils from './utils/argv.js';
 import appConfig from './utils/config.js';
 import configEmbed from './utils/configEmbed.js';
@@ -17,7 +17,6 @@ function wrapHandler(handler: (argv: any) => Promise<void>) {
   return async (argv: any) => {
     try {
       await handler(argv);
-      await new Promise((resolve) => setTimeout(resolve, 50)); //! libuv assertion error workaround
       await exitUtils.exit(0);
     } catch (error) {
       logger.error('Error caught:', error);
@@ -161,7 +160,8 @@ async function parseCommand() {
     .middleware(async (argv) => {
       argvUtils.setArgv(argv);
       logger.level = argvUtils.getArgv()['logLevel'];
-      logger.trace('Process started');
+      logger.trace('Process started: ' + `${configEmbed.APPLICATION_NAME} v${configEmbed.VERSION_NUMBER}`);
+      await updaterUtils.checkAppUpdate();
     })
     .scriptName(configEmbed.APPLICATION_NAME)
     .version(String(configEmbed.VERSION_NUMBER))

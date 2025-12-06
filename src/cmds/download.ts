@@ -13,7 +13,12 @@ async function mainCmdHandler() {
     logger.warn('Work ID has not been specified. Requesting ...');
     const idRsp: number = (
       await prompts(
-        { name: 'value', type: 'number', message: 'Enter work ID' },
+        {
+          name: 'value',
+          type: 'number',
+          message: 'Enter work ID',
+          validate: (value) => (Boolean(value) ? true : 'Invalid value'),
+        },
         {
           onCancel: async () => {
             logger.error('Aborted');
