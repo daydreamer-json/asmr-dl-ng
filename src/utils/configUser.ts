@@ -27,6 +27,23 @@ type ConfigType = AllRequired<
         exclude: string[];
       };
     };
+    media: {
+      // Whether to re-encode WAV (PCM) files
+      encoder: {
+        // FLAC (lossless) is used for signed integer PCM
+        flac: boolean;
+        // WavPack (lossless) is used for float point PCM
+        wavpack: boolean;
+        // AAC (lossy)
+        qaac: boolean;
+        // Opus (lossy)
+        opus: boolean;
+      };
+      // Delete original (wav) file after encoding
+      deleteOrigFile: boolean;
+      // Whether to write MediaInfo data to meta file
+      writeMediaInfo: boolean;
+    };
   }>
 >;
 
@@ -39,6 +56,16 @@ const initialConfig: ConfigType = {
       include: ['^.*$'],
       exclude: ['^.*\\.mp3$', '^.*(SE|ＳＥ|効果音)(な|無)し.*$'],
     },
+  },
+  media: {
+    encoder: {
+      flac: true,
+      wavpack: true,
+      qaac: false,
+      opus: false,
+    },
+    deleteOrigFile: true,
+    writeMediaInfo: true,
   },
 };
 

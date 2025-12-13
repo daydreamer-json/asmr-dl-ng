@@ -2,10 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import stream from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import util from 'node:util';
 import configEmbed from './configEmbed.js';
-
-// import logger from './logger.js';
 
 function getAppDataDir(): string {
   switch (process.platform) {
@@ -34,6 +33,36 @@ function getDefaultOutputDir(): string {
     return path.join(os.homedir(), 'Documents');
   })();
   return path.join(documentsDir, configEmbed.APPLICATION_NAME, 'output');
+}
+
+/**
+ * Detect app is standalone or not
+ */
+function isAppCompiledSA(): boolean {
+  return Boolean(
+    /^file:\/\/\/\$bunfs\/root\//g.test(import.meta.url) || /^file:\/\/\/B:\/%7EBUN\/root\//g.test(import.meta.url),
+  );
+}
+
+function getAppRootDir(): string {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  if (isAppCompiledSA()) {
+    // app is standalone
+    return path.dirname(process.execPath);
+  }
+  // app is not standalone
+  let currentDir = __dirname;
+
+  while (currentDir !== path.parse(currentDir).root) {
+    const basename = path.basename(currentDir);
+    if (basename === 'dist' || basename === 'src') {
+      return path.dirname(currentDir);
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  return __dirname; // fallback
 }
 
 async function checkFolderExists(folderPath: string): Promise<boolean> {
@@ -89,6 +118,8 @@ async function copyFileWithStream(srcPath: string, destPath: string): Promise<vo
 export default {
   getAppDataDir,
   getDefaultOutputDir,
+  isAppCompiledSA,
+  getAppRootDir,
   checkFolderExists,
   checkFileExists,
   getFileList,

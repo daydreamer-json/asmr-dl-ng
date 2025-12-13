@@ -1,6 +1,6 @@
 {
   "name": "asmr-dl-ng",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "ASMR Direct Downloader (New Generation)",
   "author": "daydreamer-json <atarakima1@icloud.com> (https://github.com/daydreamer-json)",
   "license": "AGPL-3.0-or-later",
@@ -13,8 +13,8 @@
   },
   "scripts": {
     "format": "bun x biome format --write src",
-    "start": "bun x biome format --write src && tsc && bun run src/prebuild.ts && bun run dist/main.js",
-    "build": "bun x biome format --write src && tsc && bun run src/prebuild.ts && bun build --compile --minify --target=bun-windows-x64-baseline dist/main.js --outfile asmr-dl-ng.exe"
+    "start": "bun x biome format --write src && bun x tsc && bun run src/prebuild.ts && bun run dist/main.js",
+    "build": "bun x biome format --write src && bun x tsc && bun run src/prebuild.ts && bun build --compile --minify --target=bun-windows-x64-baseline dist/main.js --outfile asmr-dl-ng.exe && bun build --compile --minify --target=bun-linux-x64-baseline dist/main.js --outfile asmr-dl-ng-linux-x64"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",

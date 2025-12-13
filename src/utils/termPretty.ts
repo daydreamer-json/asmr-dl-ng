@@ -329,6 +329,7 @@ export default {
               useBitUnit: appConfig.logger.useBitUnitForSpeed,
             })
             .padStart(6, ' '),
+          // fmtSpeedRaw: speedBytes,
           fmtTimeRemaining: getFmtTimeRemaining((maxBytes - curBytes) / speedBytes),
           fmtThread: String(threads),
         };
@@ -354,6 +355,25 @@ export default {
     },
   },
   progBarFmtCfg: {
+    encoding: {
+      mediaInfo: {
+        title: [
+          chalk.bold(`Fetching MediaInfo`),
+          'with',
+          chalk.bold.green('{fmtThread}'),
+          `threads${chalk.dim(',')}`,
+          chalk.bold.cyan('{fmtValueFileCount}'),
+          chalk.dim('/'),
+          chalk.bold.cyan('{fmtTotalFileCount}'),
+          chalk.dim(', ETA:'),
+          chalk.bold.cyan('{fmtTimeRemaining}'),
+        ].join(' '),
+        root: [
+          chalk.cyanBright(detectUseFancyProgBarBox().fancy ? '{fmtBar}' : '{bar}'),
+          chalk.bold.cyan('{fmtPct}%'),
+        ].join(' '),
+      },
+    },
     hashing: {
       title: [
         chalk.bold(`Calculating hash`),

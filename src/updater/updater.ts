@@ -15,14 +15,18 @@ import configEmbed from '../utils/configEmbed.js';
 import exitUtils from '../utils/exit.js';
 import logger from '../utils/logger.js';
 
+const githubApiUrl = 'https://api.github.com/repos/daydreamer-json/asmr-dl-ng/releases/latest';
+const innoAppId = '{B0B8B114-AE98-4165-BFC7-E029C1DB80D4}_is1';
+const assetNamePattern = /asmr-dl-ng_win_x64_.+?_setup\.exe/g;
+const tempInstallerPath = path.join(os.tmpdir(), 'asmr-dl-ng_win_x64_setup.exe');
+
 function isInstalledViaInstaller(): boolean {
   if (process.platform !== 'win32') return false;
 
-  const appId = '{B0B8B114-AE98-4165-BFC7-E029C1DB80D4}_is1';
   const regKeys = [
-    `HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${appId}`,
-    `HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${appId}`,
-    `HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${appId}`,
+    `HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${innoAppId}`,
+    `HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${innoAppId}`,
+    `HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${innoAppId}`,
   ];
 
   for (const key of regKeys) {
@@ -36,9 +40,6 @@ function isInstalledViaInstaller(): boolean {
 async function checkAppUpdate(): Promise<void> {
   // const testMode: boolean = false;
   // if (testMode) logger.warn('Update checker test mode is true!');
-  if (isInstalledViaInstaller() === false) return;
-  await cleanupInstaller();
-  const githubApiUrl: string = 'https://api.github.com/repos/daydreamer-json/asmr-dl-ng/releases/latest';
   const githubApiRsp: GitHubApiRel.Release | null = await (async () => {
     try {
       return await ky.get(githubApiUrl, apiUtils.defaultKySettings).json();
@@ -52,12 +53,22 @@ async function checkAppUpdate(): Promise<void> {
   const currentVersion = configEmbed.VERSION_NUMBER;
   if (latestVersion === null) throw new Error('Failed to get latest update');
   if (currentVersion === null) throw new Error('Embed app version number is null');
+  if (semver.lt(latestVersion, currentVersion) === true) {
+    logger.debug(`Are you a developer? (local: ${chalk.green(currentVersion)}, remote: ${chalk.red(latestVersion)})`);
+    return;
+  }
   if (semver.gt(latestVersion, currentVersion) === false) {
-    logger.info(`App is up to date (local: ${chalk.green(currentVersion)}, remote: ${chalk.green(latestVersion)})`);
+    logger.debug(`App is up to date (local: ${chalk.green(currentVersion)}, remote: ${chalk.green(latestVersion)})`);
     return;
   }
 
   logger.info(`Update is available (local: ${chalk.red(currentVersion)}, remote: ${chalk.green(latestVersion)})`);
+
+  if (isInstalledViaInstaller() === false) {
+    logger.info('Download it from here: https://is.gd/asmrdlng_rel_latest');
+    return;
+  }
+  await cleanupInstaller();
   const userSelectRsp: boolean = (
     await prompts(
       {
@@ -86,7 +97,6 @@ async function downloadAndApplyUpdate(latestRelInfo: GitHubApiRel.Release): Prom
     throw new Error(`This environment is not supported: ${process.platform}, ${process.arch}`);
   }
 
-  const assetNamePattern = /asmr-dl-ng_win_x64_.+?_setup\.exe/g;
   const githubAsset = latestRelInfo.assets.find((e) => assetNamePattern.test(e.name));
   if (!githubAsset) throw new Error('No update asset found');
 
@@ -94,13 +104,12 @@ async function downloadAndApplyUpdate(latestRelInfo: GitHubApiRel.Release): Prom
     ? ora({ text: 'Downloading installer ...', color: 'cyan', spinner: 'dotsCircle' }).start()
     : logger.info('Downloading installer ...');
   const assetBuffer = await ky.get(githubAsset.browser_download_url).bytes();
-  const installerPath = path.join(os.tmpdir(), 'asmr-dl-ng_win_x64_setup.exe');
-  await fs.writeFile(installerPath, assetBuffer);
+  await fs.writeFile(tempInstallerPath, assetBuffer);
   spinner?.stop();
 
   logger.info('Starting installer and exiting application ...');
 
-  const child = spawn(installerPath, ['/silent', '/norestart'], {
+  const child = spawn(tempInstallerPath, ['/silent', '/norestart'], {
     detached: true,
     stdio: 'ignore',
     shell: true,
@@ -114,8 +123,7 @@ async function downloadAndApplyUpdate(latestRelInfo: GitHubApiRel.Release): Prom
 }
 
 async function cleanupInstaller(): Promise<void> {
-  const installerPath = path.join(os.tmpdir(), 'asmr-dl-ng_win_x64_setup.exe');
-  await rimraf(installerPath);
+  await rimraf(tempInstallerPath);
 }
 
 export default {

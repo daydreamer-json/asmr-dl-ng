@@ -38,6 +38,7 @@ type ConfigType = AllRequired<
     threadCount: {
       network: number;
       hashing: number;
+      convert: number;
     };
     cli: {
       autoExit: boolean;
@@ -60,6 +61,14 @@ type ConfigType = AllRequired<
     };
     updateChecker: {
       useUpdateChecker: boolean;
+    };
+    media: {
+      encoderArgv: {
+        flac: string[];
+        wavpack: string[];
+        qaac: string[];
+        opus: string[];
+      };
     };
   }>
 >;
@@ -89,6 +98,7 @@ const initialConfig: ConfigType = {
   threadCount: {
     network: 8,
     hashing: 16,
+    convert: 8,
   },
   cli: {
     autoExit: false,
@@ -109,6 +119,14 @@ const initialConfig: ConfigType = {
   },
   updateChecker: {
     useUpdateChecker: true,
+  },
+  media: {
+    encoderArgv: {
+      flac: ['--keep-foreign-metadata-if-present', '-V', '--best', '-j', '24', '--replay-gain'],
+      wavpack: ['-hh', '-x6', '-m', '-v', '--import-id3', '--allow-huge-tags', '--threads=12'],
+      qaac: ['--tvbr', '127', '-q', '2', '--rate', 'keep', '--no-delay', '--gapless-mode', '0', '--threading'],
+      opus: ['--vbr', '--bitrate', '160', '--music', '--comp', '10'],
+    },
   },
 };
 
@@ -132,7 +150,9 @@ if ((await fileUtils.checkFileExists(filePath)) === false) {
 
 const config: ConfigType = await (async () => {
   const rawFileData: ConfigType = YAML.parse(await fs.readFile(filePath, 'utf-8')) as ConfigType;
-  const mergedConfig = deepmerge(initialConfig, rawFileData);
+  const mergedConfig = deepmerge(initialConfig, rawFileData, {
+    arrayMerge: (_destinationArray, sourceArray) => sourceArray,
+  });
   if (JSON.stringify(rawFileData) !== JSON.stringify(mergedConfig)) {
     await fs.writeFile(filePath, YAML.stringify(mergedConfig, null, 2), 'utf-8');
   }

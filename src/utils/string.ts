@@ -85,6 +85,7 @@ function sanitizeFilename(filename: string) {
     '<': '＜',
     '>': '＞',
     '|': '｜',
+    '&': '＆',
   };
   return Array.from(filename)
     .map((char) => invalidCharsMap[char] || char)

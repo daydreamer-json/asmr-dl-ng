@@ -18,6 +18,7 @@ import appConfig from './config.js';
 import configReadOnly from './configReadOnly.js';
 import configUser from './configUser.js';
 import downloadPostUtils from './downloadPost.js';
+// import downloadPostAudioUtils from './downloadPostAudio.js';
 import exitUtils from './exit.js';
 import fileUtils from './file.js';
 import logger from './logger.js';
@@ -339,6 +340,15 @@ async function downloadWork(
   );
 
   const calculatedHashesArray = await downloadPostUtils.calculateHashes(workApiRsp, selectedFilesUuid, workOverallUuid);
+
+  // const mediaInfoResponse = await downloadPostAudioUtils.getMediaInfoData(
+  //   workApiRsp,
+  //   selectedFilesUuid,
+  //   workOverallUuid,
+  // );
+  //! === TEST!!! ===
+  // console.log(mediaInfoResponse);
+  // await fs.promises.writeFile('R:/mediaInfoRsp.yaml', YAML.stringify(mediaInfoResponse), 'utf-8');
 
   if (argvUtils.getArgv()['save-metadata'] === true) {
     await (async () => {

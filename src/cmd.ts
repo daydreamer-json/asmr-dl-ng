@@ -28,6 +28,14 @@ function wrapHandler(handler: (argv: any) => Promise<void>) {
 async function parseCommand() {
   const yargsInstance = yargs(hideBin(process.argv));
   await yargsInstance
+    // .command(
+    //   ['test'],
+    //   'Test command',
+    //   (yargs) => {
+    //     yargs.options({});
+    //   },
+    //   wrapHandler(cmds.test),
+    // )
     .command(
       ['download [id...]', 'dl'],
       'Download work',
@@ -66,6 +74,12 @@ async function parseCommand() {
               alias: ['th'],
               desc: 'Number of threads used for file hashing',
               default: appConfig.threadCount.hashing,
+              type: 'number',
+            },
+            'thread-convert': {
+              alias: ['tc'],
+              desc: 'Number of threads used for audio encoding',
+              default: appConfig.threadCount.convert,
               type: 'number',
             },
             'save-metadata': {

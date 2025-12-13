@@ -9,11 +9,16 @@ import logger from '../utils/logger.js';
 import termPrettyUtils from '../utils/termPretty.js';
 
 async function mainCmdHandler() {
-  if (!('id' in argvUtils.getArgv())) {
+  if (!('id' in argvUtils.getArgv()) || argvUtils.getArgv()['id'].length === 0) {
     logger.warn('Work ID has not been specified. Requesting ...');
     const idRsp: number = (
       await prompts(
-        { name: 'value', type: 'number', message: 'Enter work ID' },
+        {
+          name: 'value',
+          type: 'number',
+          message: 'Enter work ID',
+          validate: (value) => (Boolean(value) ? true : 'Invalid value'),
+        },
         {
           onCancel: async () => {
             logger.error('Aborted');
@@ -22,10 +27,9 @@ async function mainCmdHandler() {
         },
       )
     ).value;
-    argvUtils.setArgv({ ...argvUtils.getArgv(), id: idRsp });
+    argvUtils.setArgv({ ...argvUtils.getArgv(), id: [idRsp] });
   }
   apiUtils.setBaseUri(argvUtils.getArgv()['server'] as TypesApi.ServerName);
-
   await (async () => {
     const spinner = !argvUtils.getArgv()['no-show-progress']
       ? ora({ text: 'Checking API health ...', color: 'cyan', spinner: 'dotsCircle' }).start()
