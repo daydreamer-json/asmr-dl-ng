@@ -1,5 +1,5 @@
 #define MyAppName "asmr-dl-ng"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "daydreamer-json"
 #define MyAppURL "https://github.com/daydreamer-json/asmr-dl-ng"
 #define MyAppExeName "asmr-dl-ng.exe"
