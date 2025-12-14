@@ -8,6 +8,7 @@ import * as TypesApiEndpoint from '../types/ApiEndpoint.js';
 import * as TypesApiFiles from '../types/ApiFiles.js';
 import argvUtils from './argv.js';
 import appConfig from './config.js';
+import configUser from './configUser.js';
 import fileUtils from './file.js';
 import logger from './logger.js';
 import mathUtils from './math.js';
@@ -189,6 +190,7 @@ async function deobfuscateFilename(
     };
     coverImgBuffer: Record<'main' | 'thumb' | 'icon', ArrayBuffer | null>;
   },
+  encodeResponse: Record<'flac' | 'wavPack' | 'aac' | 'opus', { uuid: string; result: any }[]>,
   selectedFilesUuid: string[],
   workOverallUuid: string,
 ) {
@@ -226,14 +228,85 @@ async function deobfuscateFilename(
     (e) => selectedFilesUuid.includes(e.uuid),
   );
 
+  const encodedUuidFlatArray = [
+    ...new Set([
+      ...encodeResponse['flac'].map((e) => e.uuid),
+      ...encodeResponse['wavPack'].map((e) => e.uuid),
+      ...encodeResponse['aac'].map((e) => e.uuid),
+      ...encodeResponse['opus'].map((e) => e.uuid),
+    ]),
+  ];
+
   for (const fileEntry of needProcessFileEntry) {
     const oldFilePath = path.join(oldOutputDirPath, fileEntry.uuid);
     const newFilePath = path.join(newOutputDirPathRoot, ...fileEntry.path.map((e) => stringUtils.sanitizeFilename(e)));
+
+    if (encodedUuidFlatArray.includes(fileEntry.uuid) && configUser.getConfig().media.deleteOrigFile === true) {
+      continue;
+    }
+
     if ((await fileUtils.checkFolderExists(path.dirname(newFilePath))) === false) {
       await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
     }
     await fs.promises.rename(oldFilePath, newFilePath);
   }
+
+  await (async () => {
+    for (const encodedUuid of encodedUuidFlatArray) {
+      const isEncoded: Record<'flac' | 'wavPack' | 'aac' | 'opus', boolean> = {
+        flac: encodeResponse['flac'].map((e) => e.uuid).includes(encodedUuid),
+        wavPack: encodeResponse['wavPack'].map((e) => e.uuid).includes(encodedUuid),
+        aac: encodeResponse['aac'].map((e) => e.uuid).includes(encodedUuid),
+        opus: encodeResponse['opus'].map((e) => e.uuid).includes(encodedUuid),
+      };
+      const renameFunc = async (
+        keyName: 'flac' | 'wavPack' | 'aac' | 'opus',
+        oldFileSuffix: string,
+        newFileExt: string,
+        newFolderPrefix: string,
+      ) => {
+        if (isEncoded[keyName]) {
+          const oldFilePath = path.join(oldOutputDirPath, encodedUuid + oldFileSuffix);
+          const newOrigFilePath = path.join(
+            newOutputDirPathRoot,
+            ...needProcessFileEntry
+              .find((e) => e.uuid === encodedUuid)!
+              .path.map((e) => stringUtils.sanitizeFilename(e)),
+          );
+          const newOrigFilePathFallback = path.join(
+            newOutputDirPathRoot,
+            newFolderPrefix,
+            ...needProcessFileEntry
+              .find((e) => e.uuid === encodedUuid)!
+              .path.map((e) => stringUtils.sanitizeFilename(e)),
+          );
+          const newFilePath = path.join(
+            path.dirname(newOrigFilePath),
+            path.basename(newOrigFilePath, path.extname(newOrigFilePath)) + newFileExt,
+          );
+          const newFilePathFallback = path.join(
+            path.dirname(newOrigFilePathFallback),
+            path.basename(newOrigFilePathFallback, path.extname(newOrigFilePathFallback)) + newFileExt,
+          );
+          if (await fileUtils.checkFileExists(newFilePath)) {
+            if ((await fileUtils.checkFolderExists(path.dirname(newFilePathFallback))) === false) {
+              await fs.promises.mkdir(path.dirname(newFilePathFallback), { recursive: true });
+            }
+            await fs.promises.rename(oldFilePath, newFilePathFallback);
+          } else {
+            if ((await fileUtils.checkFolderExists(path.dirname(newFilePath))) === false) {
+              await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
+            }
+            await fs.promises.rename(oldFilePath, newFilePath);
+          }
+        }
+      };
+      await renameFunc('flac', '_flac', '.flac', 'encoded_flac');
+      await renameFunc('wavPack', '_wavPack', '.wv', 'encoded_wavpack');
+      await renameFunc('aac', '_aac', '.m4a', 'encoded_aac');
+      await renameFunc('opus', '_opus', '.opus', 'encoded_opus');
+    }
+  })();
 
   if (argvUtils.getArgv()['save-metadata'] === true) {
     await (async () => {

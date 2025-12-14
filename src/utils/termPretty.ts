@@ -373,6 +373,58 @@ export default {
           chalk.bold.cyan('{fmtPct}%'),
         ].join(' '),
       },
+      flac: {
+        title: [
+          chalk.bold(`Encoding FLAC`),
+          'with',
+          chalk.bold.green('{fmtThread}'),
+          `threads${chalk.dim(',')}`,
+          chalk.bold.cyan('{fmtValueFileCount}'),
+          chalk.dim('/'),
+          chalk.bold.cyan('{fmtTotalFileCount}'),
+          chalk.dim(', ETA:'),
+          chalk.bold.cyan('{fmtTimeRemaining}'),
+        ].join(' '),
+      },
+      wavPack: {
+        title: [
+          chalk.bold(`Encoding WavPack`),
+          'with',
+          chalk.bold.green('{fmtThread}'),
+          `threads${chalk.dim(',')}`,
+          chalk.bold.cyan('{fmtValueFileCount}'),
+          chalk.dim('/'),
+          chalk.bold.cyan('{fmtTotalFileCount}'),
+          chalk.dim(', ETA:'),
+          chalk.bold.cyan('{fmtTimeRemaining}'),
+        ].join(' '),
+      },
+      aac: {
+        title: [
+          chalk.bold(`Encoding AAC`),
+          'with',
+          chalk.bold.green('{fmtThread}'),
+          `threads${chalk.dim(',')}`,
+          chalk.bold.cyan('{fmtValueFileCount}'),
+          chalk.dim('/'),
+          chalk.bold.cyan('{fmtTotalFileCount}'),
+          chalk.dim(', ETA:'),
+          chalk.bold.cyan('{fmtTimeRemaining}'),
+        ].join(' '),
+      },
+      opus: {
+        title: [
+          chalk.bold(`Encoding Opus`),
+          'with',
+          chalk.bold.green('{fmtThread}'),
+          `threads${chalk.dim(',')}`,
+          chalk.bold.cyan('{fmtValueFileCount}'),
+          chalk.dim('/'),
+          chalk.bold.cyan('{fmtTotalFileCount}'),
+          chalk.dim(', ETA:'),
+          chalk.bold.cyan('{fmtTimeRemaining}'),
+        ].join(' '),
+      },
     },
     hashing: {
       title: [

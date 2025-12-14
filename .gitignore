@@ -2,6 +2,7 @@
 node_modules
 
 /*.exe
+/*-linux-x64
 build
 
 memo.md

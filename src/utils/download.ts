@@ -18,7 +18,7 @@ import appConfig from './config.js';
 import configReadOnly from './configReadOnly.js';
 import configUser from './configUser.js';
 import downloadPostUtils from './downloadPost.js';
-// import downloadPostAudioUtils from './downloadPostAudio.js';
+import downloadPostAudioUtils from './downloadPostAudio.js';
 import exitUtils from './exit.js';
 import fileUtils from './file.js';
 import logger from './logger.js';
@@ -341,14 +341,60 @@ async function downloadWork(
 
   const calculatedHashesArray = await downloadPostUtils.calculateHashes(workApiRsp, selectedFilesUuid, workOverallUuid);
 
-  // const mediaInfoResponse = await downloadPostAudioUtils.getMediaInfoData(
-  //   workApiRsp,
-  //   selectedFilesUuid,
-  //   workOverallUuid,
-  // );
+  const mediaInfoResponse = await downloadPostAudioUtils.getMediaInfoData(
+    workApiRsp,
+    selectedFilesUuid,
+    workOverallUuid,
+  );
   //! === TEST!!! ===
   // console.log(mediaInfoResponse);
   // await fs.promises.writeFile('R:/mediaInfoRsp.yaml', YAML.stringify(mediaInfoResponse), 'utf-8');
+
+  const encodeResponse: Record<'flac' | 'wavPack' | 'aac' | 'opus', { uuid: string; result: any }[]> = {
+    flac: [],
+    wavPack: [],
+    aac: [],
+    opus: [],
+  };
+
+  await (async () => {
+    encodeResponse['flac'] = await downloadPostAudioUtils.encodeFlac(
+      workApiRsp,
+      mediaInfoResponse,
+      selectedFilesUuid,
+      workOverallUuid,
+    );
+    encodeResponse['wavPack'] = await downloadPostAudioUtils.encodeWavPack(
+      workApiRsp,
+      mediaInfoResponse,
+      selectedFilesUuid,
+      workOverallUuid,
+    );
+    encodeResponse['aac'] = await downloadPostAudioUtils.encodeAac(
+      workApiRsp,
+      mediaInfoResponse,
+      selectedFilesUuid,
+      workOverallUuid,
+    );
+    encodeResponse['opus'] = await downloadPostAudioUtils.encodeOpus(
+      workApiRsp,
+      mediaInfoResponse,
+      selectedFilesUuid,
+      workOverallUuid,
+    );
+    if (configUser.getConfig().media.deleteOrigFile) {
+      for (const encodedUuid of [
+        ...new Set([
+          ...encodeResponse['flac'].map((e) => e.uuid),
+          ...encodeResponse['wavPack'].map((e) => e.uuid),
+          ...encodeResponse['aac'].map((e) => e.uuid),
+          ...encodeResponse['opus'].map((e) => e.uuid),
+        ]),
+      ]) {
+        await rimraf(path.join(tempOutputDirPath, encodedUuid));
+      }
+    }
+  })();
 
   if (argvUtils.getArgv()['save-metadata'] === true) {
     await (async () => {
@@ -400,7 +446,7 @@ async function downloadWork(
     })();
   }
 
-  await downloadPostUtils.deobfuscateFilename(workApiRsp, selectedFilesUuid, workOverallUuid);
+  await downloadPostUtils.deobfuscateFilename(workApiRsp, encodeResponse, selectedFilesUuid, workOverallUuid);
   await rimraf(tempOutputDirPath);
 
   logger.info('All download completed!');
