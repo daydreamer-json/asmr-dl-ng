@@ -460,7 +460,7 @@ export default {
         chalk.bold.cyan('{fmtTotalBytes}'),
         chalk.dim('MiB │'),
         chalk.bold.cyan('{fmtSpeed}'),
-        chalk.dim((appConfig.logger.useBitUnitForSpeed ? 'Mbps' : 'MB/s') + ' sum'),
+        chalk.dim((appConfig.logger.useBitUnitForSpeed ? 'Mbps' : 'MiB/s') + ' sum'),
       ].join(' '),
       sub: [
         chalk.green(detectUseFancyProgBarBox().fancy ? '{fmtBar}' : '{bar}'),
