@@ -29,7 +29,7 @@ import termPrettyUtils from './termPretty.js';
 
 async function downloadMeta(workId: number) {
   const spinner = !argvUtils.getArgv()['no-show-progress']
-    ? ora({ text: 'Downloading work metadata ...', color: 'cyan', spinner: 'dotsCircle' }).start()
+    ? ora({ text: 'Downloading metadata from DB ...', color: 'cyan', spinner: 'dotsCircle' }).start()
     : undefined;
   const workApiRsp: {
     info: TypesApiEndpoint.RspWorkInfoSanitized;
@@ -65,21 +65,23 @@ async function downloadMeta(workId: number) {
       }
     }
   })();
-  const coverImgBuffer: Record<'main' | 'thumb' | 'icon', ArrayBuffer | null> = {
-    main: null,
-    thumb: null,
-    icon: null,
-  };
-  for (const coverImgType of ['main', 'thumb', 'icon'] as const) {
+  spinner ? (spinner.text = 'Downloading metadata from DLsite server ...') : undefined;
+  const workOriginApiRsp = await (async () => {
     try {
-      coverImgBuffer[coverImgType] = await apiUtils.api.media.coverImage(workId, coverImgType);
+      return await apiUtils.apiDlsite.work.info(workApiRsp.info.source_id);
     } catch (error) {
+      spinner?.stop();
       if (error instanceof HTTPError) {
-        if (error.response.status !== 404) {
-          logger.error(`Failed to download metadata: ${error.response.status} ${error.response.statusText}`);
+        if (error.response.status === 404) {
+          logger.error(`Work not found. Please check the ID and try again. ID: ${workId}`);
           await exitUtils.exit(1, null, false);
-          throw error;
+        } else if (error.response.status === 525) {
+          logger.error(`Failed to download metadata: 525 Cloudflare SSL handshake failed`);
+          await exitUtils.exit(1, null, false);
         }
+        logger.error(`Failed to download metadata: ${error.response.status} ${error.response.statusText}`);
+        await exitUtils.exit(1, null, false);
+        throw error;
       } else if (error instanceof Error) {
         logger.error(`Failed to download metadata: ${error.message}`);
         await exitUtils.exit(1, null, false);
@@ -88,12 +90,42 @@ async function downloadMeta(workId: number) {
         throw new Error('An unknown error occurred while downloading metadata');
       }
     }
+  })();
+  const coverImgBuffer: Record<'main' | 'thumb' | 'icon', ArrayBuffer | null> = {
+    main: null,
+    thumb: null,
+    icon: null,
+  };
+  spinner ? (spinner.text = 'Downloading cover image ...') : undefined;
+  for (const coverImgType of ['main', 'thumb', 'icon'] as const) {
+    try {
+      coverImgBuffer[coverImgType] = await apiUtils.api.media.coverImage(workId, coverImgType);
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        if (error.response.status !== 404) {
+          spinner?.stop();
+          logger.error(`Failed to download metadata: ${error.response.status} ${error.response.statusText}`);
+          await exitUtils.exit(1, null, false);
+          throw error;
+        }
+      } else if (error instanceof Error) {
+        spinner?.stop();
+        logger.error(`Failed to download metadata: ${error.message}`);
+        await exitUtils.exit(1, null, false);
+        throw error;
+      } else {
+        spinner?.stop();
+        throw new Error('An unknown error occurred while downloading metadata');
+      }
+    }
   }
 
   spinner?.stop();
   logger.info('Work metadata downloaded');
   return {
-    ...workApiRsp,
+    info: workApiRsp.info,
+    infoOrig: JSON.stringify(workOriginApiRsp) === '[]' ? null : workOriginApiRsp,
+    fileEntry: workApiRsp.fileEntry,
     coverImgBuffer,
   };
 }
@@ -156,6 +188,7 @@ async function filterFileEntry(fileEntries: TypesApiFiles.FilesystemEntryTransfo
 async function downloadWork(
   workApiRsp: {
     info: TypesApiEndpoint.RspWorkInfoSanitized;
+    infoOrig: any;
     fileEntry: {
       raw: TypesApiFiles.FilesystemEntry[];
       transformed: TypesApiFiles.FilesystemEntryTransformed[];
@@ -403,6 +436,7 @@ async function downloadWork(
         path.join(tempOutputDirPath, 'meta.yaml'),
         YAML.stringify({
           info: workApiRsp.info,
+          infoOrig: workApiRsp.infoOrig,
           coverImage: Object.fromEntries(Object.entries(workApiRsp.coverImgBuffer).map((e) => [e[0], e[1] !== null])),
           fileEntry: (() => {
             return workApiRsp.fileEntry.transformed

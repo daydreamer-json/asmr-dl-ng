@@ -184,6 +184,7 @@ async function calculateHashes(
 async function deobfuscateFilename(
   workApiRsp: {
     info: TypesApiEndpoint.RspWorkInfoSanitized;
+    infoOrig: any;
     fileEntry: {
       raw: TypesApiFiles.FilesystemEntry[];
       transformed: TypesApiFiles.FilesystemEntryTransformed[];
@@ -205,7 +206,10 @@ async function deobfuscateFilename(
       (() => {
         const replaceArray: [RegExp, string][] = [
           [/<WORK_ID>/g, workApiRsp.info.source_id],
-          [/<WORK_TITLE>/g, stringUtils.sanitizeFilename(workApiRsp.info.title)],
+          [
+            /<WORK_TITLE>/g,
+            stringUtils.sanitizeFilename(workApiRsp.infoOrig ? workApiRsp.infoOrig.work_name : workApiRsp.info.title),
+          ],
           [/<CIRCLE_ID>/g, workApiRsp.info.circle.source_id],
           [/<CIRCLE_NAME>/g, stringUtils.sanitizeFilename(workApiRsp.info.circle.name)],
           [/<VA_NAME>/g, workApiRsp.info.vas.map((e) => stringUtils.sanitizeFilename(e.name)).join(',')],

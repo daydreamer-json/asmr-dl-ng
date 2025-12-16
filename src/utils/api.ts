@@ -20,6 +20,22 @@ export default {
   setBaseUri: (server: TypesApi.ServerName) => {
     BASE_URI = `https://${appConfig.network.asmrApi.baseDomain[server]}/${appConfig.network.asmrApi.apiPath}`;
   },
+  apiDlsite: {
+    work: {
+      info: async (source_id: string): Promise<any> => {
+        const rsp = await ky
+          .get(atob('aHR0cHM6Ly93d3cuZGxzaXRlLmNvbQ==') + '/maniax/product/info/ajax', {
+            ...defaultKySettings,
+            searchParams: {
+              product_id: source_id,
+              cdn_cache_min: 1,
+            },
+          })
+          .json();
+        return (rsp as any)[source_id] ?? rsp;
+      },
+    },
+  },
   api: {
     health: async (): Promise<{ available: boolean; message: string }> => {
       const rsp = await ky.get(`${BASE_URI}/health`, defaultKySettings).text();

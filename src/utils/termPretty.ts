@@ -148,6 +148,7 @@ function wordWrapperSimple(strArray: string[], width: number): string[] {
 
 function printWorkInfo(workApiRsp: {
   info: TypesApiEndpoint.RspWorkInfoSanitized;
+  infoOrig: any;
   fileEntry: {
     raw: TypesApiFiles.FilesystemEntry[];
     transformed: TypesApiFiles.FilesystemEntryTransformed[];
@@ -169,7 +170,13 @@ function printWorkInfo(workApiRsp: {
   table.push(
     ...[
       ['ID', workApiRsp.info.source_id],
-      ['Title', wordWrapper(workApiRsp.info.title, availableMaxTextWidth).join('\n')],
+      [
+        'Title',
+        wordWrapper(
+          workApiRsp.infoOrig ? workApiRsp.infoOrig.work_name : workApiRsp.info.title,
+          availableMaxTextWidth,
+        ).join('\n'),
+      ],
       // ['Circle ID', workApiRsp.info.circle.source_id],
       ['Circle Name', wordWrapper(workApiRsp.info.circle.name, availableMaxTextWidth).join('\n')],
       [

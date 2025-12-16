@@ -46,6 +46,9 @@ async function mainCmdHandler() {
   const workApiRsp = await downloadUtils.downloadMeta(argvUtils.getArgv()['id']);
 
   console.log(termPrettyUtils.printWorkInfo(workApiRsp));
+
+  // console.log(YAML.stringify(workApiRsp.infoOrig));
+  // await fs.promises.writeFile('R:/dlsite_api_meta.yaml', YAML.stringify(workApiRsp.infoOrig), 'utf-8');
 }
 
 export default mainCmdHandler;
