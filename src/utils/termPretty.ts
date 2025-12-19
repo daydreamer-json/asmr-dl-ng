@@ -160,15 +160,16 @@ function printWorkInfo(workApiRsp: {
 
   const tmpObj = {
     dlCount: workApiRsp.infoOrig.dl_count.toLocaleString(),
-    price: workApiRsp.infoOrig.price.toLocaleString(),
     ...(() => {
-      const outPrice: number = (workApiRsp.infoOrig.price * 100) / (100 + configReadOnly.jpyTax);
+      const rawApiPrice = workApiRsp.infoOrig.official_price ?? workApiRsp.infoOrig.price;
+      const outPrice: number = (rawApiPrice * 100) / (100 + configReadOnly.jpyTax);
       const inputPrice: number =
         outPrice > configReadOnly.dlsitePriceTable.at(-1)?.output!
           ? outPrice * 0.8
           : configReadOnly.dlsitePriceTable.find((e) => e.output === outPrice)!.input;
       const dlsiteFeePrice: number = outPrice - inputPrice;
       return {
+        price: rawApiPrice.toLocaleString(),
         creatorEarn: (inputPrice * workApiRsp.infoOrig.dl_count).toLocaleString(),
         bizEarn: (dlsiteFeePrice * workApiRsp.infoOrig.dl_count).toLocaleString(),
         feePcnt: mathUtils.rounder('round', (dlsiteFeePrice / inputPrice) * 100, 1).orig.toString() + '%',
