@@ -54,7 +54,7 @@ const initialConfig: ConfigType = {
     useAutoFilterRegex: false,
     filterRegex: {
       include: ['^.*$'],
-      exclude: ['^.*\\.mp3$', '^.*(SE|ＳＥ|効果音)(な|無)し.*$'],
+      exclude: ['^.*\\.mp3$', '^.*((SE|ＳＥ|se|ｓｅ|効果音)(な|無)し|noSE).*$'],
     },
   },
   media: {

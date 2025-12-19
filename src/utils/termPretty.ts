@@ -8,6 +8,7 @@ import * as wakachigaki from 'wakachigaki';
 import * as TypesApiEndpoint from '../types/ApiEndpoint.js';
 import * as TypesApiFiles from '../types/ApiFiles.js';
 import appConfig from './config.js';
+import configReadOnly from './configReadOnly.js';
 import mathUtils from './math.js';
 import stringUtils from './string.js';
 
@@ -158,14 +159,42 @@ function printWorkInfo(workApiRsp: {
   const availableMaxTextWidth = Math.min(54, process.stdout.columns - 20);
 
   const tmpObj = {
-    dlCount: workApiRsp.info.dl_count.toLocaleString(),
-    price: workApiRsp.info.price.toLocaleString(),
-    totalSales: (workApiRsp.info.price * workApiRsp.info.dl_count).toLocaleString(),
+    dlCount: workApiRsp.infoOrig.dl_count.toLocaleString(),
+    price: workApiRsp.infoOrig.price.toLocaleString(),
+    ...(() => {
+      const outPrice: number = (workApiRsp.infoOrig.price * 100) / (100 + configReadOnly.jpyTax);
+      const inputPrice: number =
+        outPrice > configReadOnly.dlsitePriceTable.at(-1)?.output!
+          ? outPrice * 0.8
+          : configReadOnly.dlsitePriceTable.find((e) => e.output === outPrice)!.input;
+      const dlsiteFeePrice: number = outPrice - inputPrice;
+      return {
+        creatorEarn: (inputPrice * workApiRsp.infoOrig.dl_count).toLocaleString(),
+        bizEarn: (dlsiteFeePrice * workApiRsp.infoOrig.dl_count).toLocaleString(),
+        feePcnt: mathUtils.rounder('round', (dlsiteFeePrice / inputPrice) * 100, 1).orig.toString() + '%',
+      };
+    })(),
     totalSize: mathUtils.formatFileSize(
       mathUtils.arrayTotal(workApiRsp.fileEntry.transformed.map((e) => e.size)),
       fmtFileSizeDefaultCfg,
     ),
   };
+
+  // (() => {
+  //   const table2 = new CliTable3(cliTableConfig.rounded);
+  //   table2.push(
+  //     ['Input', 'Output', 'Fee', 'Fee%'].map((e) => chalk.dim(e)),
+  //     ...configReadOnly.dlsitePriceTable.map((e) =>
+  //       [
+  //         e.input.toLocaleString(),
+  //         e.output.toLocaleString(),
+  //         (e.output - e.input).toLocaleString(),
+  //         mathUtils.rounder('round', ((e.output - e.input) / e.input) * 100, 1).padded + '%',
+  //       ].map((f) => ({ hAlign: 'right' as const, content: f })),
+  //     ),
+  //   );
+  //   console.log(table2.toString());
+  // })();
 
   table.push(
     ...[
@@ -200,8 +229,6 @@ function printWorkInfo(workApiRsp: {
           availableMaxTextWidth,
         ).join('\n'),
       ],
-      ['Release Date', DateTime.fromISO(workApiRsp.info.release).toFormat('yyyy/MM/dd')],
-      ['Created Date', DateTime.fromISO(workApiRsp.info.create_date).toFormat('yyyy/MM/dd')],
       [
         'Age Category',
         stringUtils.replaceMultiPatterns(
@@ -213,11 +240,20 @@ function printWorkInfo(workApiRsp: {
           workApiRsp.info.age_category_string,
         ),
       ],
+      ['Release Date', DateTime.fromISO(workApiRsp.info.release).toFormat('yyyy/MM/dd')],
+      ['Created Date', DateTime.fromISO(workApiRsp.info.create_date).toFormat('yyyy/MM/dd')],
       ['DL Count', tmpObj.dlCount.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ')],
       ['Price', tmpObj.price.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') + ' JPY'],
       [
-        'Total Sales',
-        tmpObj.totalSales.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') + ' JPY',
+        'Creator Earn',
+        tmpObj.creatorEarn.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') + ' JPY',
+      ],
+      [
+        'DLsite Earn',
+        tmpObj.bizEarn.padStart(mathUtils.arrayMax(Object.values(tmpObj).map((e) => e.length)), ' ') +
+          ' JPY (' +
+          tmpObj.feePcnt +
+          ' fee)',
       ],
       [
         'Total Size',
@@ -276,10 +312,11 @@ function generateProgBarBox(current: number, total: number, width: number, useSh
   const remainingChars = width - usedChars;
 
   // generate empty area (LIGHT SHADE or space)
-  const emptyChar = useShade ? '\u2591' : ' ';
+  // const emptyChar = useShade ? '\u2591' : ' ';
+  const emptyChar = ' ';
   bar += emptyChar.repeat(remainingChars);
 
-  return bar;
+  return useShade ? chalk.bgHex('#404040')(bar) : bar;
 }
 
 function detectUseFancyProgBarBox(): Record<'fancy' | 'shade', boolean> {

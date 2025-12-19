@@ -286,6 +286,12 @@ async function downloadWork(
       };
 
       while (retriedCount <= appConfig.network.retryCount) {
+        // Ensure the file is deleted before attempting to download
+        try {
+          await fs.promises.unlink(outFilePath);
+        } catch (e: any) {
+          // if (e.code !== 'ENOENT') logger.warn(`Could not delete incomplete file: ${outFilePath}`);
+        }
         const abortController = new AbortController();
         let timeoutTimer: NodeJS.Timeout | null = null;
         let lastNonZeroRateTime = Date.now();
@@ -320,7 +326,7 @@ async function downloadWork(
           await stream.promises.pipeline(
             stream.Readable.fromWeb(response.body as any),
             progressStream,
-            fs.createWriteStream(outFilePath, { flags: 'wx' }),
+            fs.createWriteStream(outFilePath),
             { signal: abortController.signal },
           );
           progBarUpdateFunc(fileEntry.size);
@@ -332,9 +338,12 @@ async function downloadWork(
           if (timeoutTimer) clearInterval(timeoutTimer);
           timeoutTimer = null;
 
+          // Attempt to clean up the partially downloaded file
           try {
             await fs.promises.unlink(outFilePath);
-          } catch (_e) {}
+          } catch (e: any) {
+            // if (e.code !== 'ENOENT') logger.warn(`Could not delete incomplete file on error: ${outFilePath}`);
+          }
 
           retriedCount++;
           if (retriedCount > appConfig.network.retryCount) {
