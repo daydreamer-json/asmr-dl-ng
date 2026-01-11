@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import appConfig from './config.js';
 import omitDeep from './omitDeep.js';
 
@@ -64,16 +66,33 @@ async function spawnWavPackEnc(
     type: 'progress' | 'warning' | 'info' | 'done' | 'error';
   }) => void,
 ) {
-  const args = [...appConfig.media.encoderArgv.wavpack, audioPathIn, audioPathOut];
+  let inputPath = audioPathIn;
+  let tempSymlink: string | null = null;
+
+  if (path.extname(audioPathIn) === '') {
+    const linkPath = `${audioPathIn}.wav`;
+    try {
+      await fs.symlink(path.basename(audioPathIn), linkPath);
+      tempSymlink = linkPath;
+      inputPath = linkPath;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const args = [...appConfig.media.encoderArgv.wavpack, inputPath, audioPathOut];
 
   const proc = Bun.spawn([binPath, ...args], { stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' });
 
   const decoder = new TextDecoder();
   const progressRegex = /(\d+)% done/;
 
+  let stderrOutput = '';
+
   (async () => {
     for await (const chunk of proc.stderr) {
       const text = decoder.decode(chunk, { stream: true });
+      stderrOutput += text;
       const lines = text.split('\r');
       const lastLine = lines.at(-1)!.trim();
 
@@ -93,9 +112,16 @@ async function spawnWavPackEnc(
   })();
 
   const exitCode = await proc.exited;
+
+  if (tempSymlink) {
+    await fs.rename(`${audioPathOut}.wv`, audioPathOut);
+    try {
+      await fs.unlink(tempSymlink);
+    } catch {}
+  }
+
   if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text();
-    const err = `wavpack process exited with code ${exitCode}\n${stderr}`;
+    const err = `wavpack process exited with code ${exitCode}\n${stderrOutput}`;
     onProgress({ message: err, type: 'error' });
     throw new Error(err);
   }
@@ -152,8 +178,7 @@ async function spawnAacEnc(
 
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text();
-    const err = `qaac process exited with code ${exitCode}\n${stderr}`;
+    const err = `qaac process exited with code ${exitCode}\n${stderrOutput}`;
     onProgress({ message: err, type: 'error' });
     throw new Error(err);
   }
