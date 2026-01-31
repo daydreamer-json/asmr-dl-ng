@@ -139,10 +139,12 @@ async function calculateHashes(
               progBarUpdateFunc(fileEntry.size);
               progBarSub?.stop();
               progBar?.remove(progBarSub!);
+              worker.terminate();
               resolve();
               break;
             case 'error':
               console.error(`Worker error for ${fileEntry.path.join('/')}:`, data.error);
+              worker.terminate();
               reject(new Error(`Worker error for ${fileEntry.path.join('/')}: ${data.error.message}`));
               break;
           }
@@ -151,6 +153,7 @@ async function calculateHashes(
         worker.onerror = (err) => {
           // This catches errors that prevent the worker script from loading or executing.
           console.error(`A critical error occurred in the worker for ${fileEntry.path.join('/')}:`, err);
+          worker.terminate();
           reject(new Error(`Worker failed for ${fileEntry.path.join('/')}: ${err.message}`));
         };
 
@@ -165,6 +168,7 @@ async function calculateHashes(
   await queue.onIdle();
 
   progBar?.stop();
+  URL.revokeObjectURL(workerUrl);
 
   logger.info(
     'All file hashes calculated. Speed: ' +

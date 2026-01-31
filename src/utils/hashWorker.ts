@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const PROGRESS_INTERVAL_MS = 0;
+const PROGRESS_INTERVAL_MS = 50;
 
 self.addEventListener('error', (event) => {
   // Catch any unhandled errors in the worker
