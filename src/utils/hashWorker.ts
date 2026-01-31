@@ -10,12 +10,15 @@ self.addEventListener('error', (event) => {
 self.onmessage = async (event: MessageEvent<{ filePath: string; algorithms: string[] }>) => {
   const { filePath, algorithms } = event.data;
 
+  let file: any = null;
+  let stream: any = null;
+  let hashers: { [key: string]: Bun.CryptoHasher } | null = {};
+
   try {
-    const file = Bun.file(filePath);
-    const stream = file.stream();
-    const hashers: { [key: string]: Bun.CryptoHasher } = {};
+    file = Bun.file(filePath);
+    stream = file.stream();
     algorithms.forEach((alg) => {
-      hashers[alg] = new Bun.CryptoHasher(alg as any);
+      hashers![alg] = new Bun.CryptoHasher(alg as any);
     });
 
     let lastProgressTime = 0;
@@ -24,7 +27,7 @@ self.onmessage = async (event: MessageEvent<{ filePath: string; algorithms: stri
     for await (const chunk of stream) {
       const now = Date.now();
       chunkBuffer += chunk.length;
-      algorithms.forEach((alg) => hashers[alg]!.update(chunk));
+      algorithms.forEach((alg) => hashers![alg]!.update(chunk));
 
       if (now - lastProgressTime > PROGRESS_INTERVAL_MS) {
         self.postMessage({ type: 'progress', chunk_size: chunkBuffer });
@@ -35,7 +38,7 @@ self.onmessage = async (event: MessageEvent<{ filePath: string; algorithms: stri
 
     const calculatedHashes: { [key: string]: string } = {};
     algorithms.forEach((alg) => {
-      calculatedHashes[alg] = hashers[alg]!.digest('hex');
+      calculatedHashes[alg] = hashers![alg]!.digest('hex');
     });
 
     if (chunkBuffer > 0) {
@@ -45,5 +48,10 @@ self.onmessage = async (event: MessageEvent<{ filePath: string; algorithms: stri
     self.postMessage({ type: 'done', result: calculatedHashes });
   } catch (err: any) {
     self.postMessage({ type: 'error', error: { message: err.message, stack: err.stack } });
+  } finally {
+    hashers = null;
+    stream = null;
+    file = null;
+    Bun.gc(true);
   }
 };

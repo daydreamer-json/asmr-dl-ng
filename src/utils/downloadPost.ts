@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import cliProgress from 'cli-progress';
 import ora from 'ora';
-import PQueue from 'p-queue';
 import { rimraf } from 'rimraf';
 import * as TypesApiEndpoint from '../types/ApiEndpoint.js';
 import * as TypesApiFiles from '../types/ApiFiles.js';
@@ -40,7 +39,6 @@ async function calculateHashes(
     hash: Record<'sha256' | 'sha384' | 'sha512' | 'sha3-512', string>;
   }[] = [];
   const hashAlgorithms = ['sha256', 'sha384', 'sha512', 'sha3-512'];
-  const queue = new PQueue({ concurrency: argvUtils.getArgv()['thread-hash'] });
 
   const needCalcFileEntry: TypesApiFiles.FilesystemEntryTransformed[] = workApiRsp.fileEntry.transformed.filter((e) =>
     selectedFilesUuid.includes(e.uuid),
@@ -51,6 +49,8 @@ async function calculateHashes(
   const rateMeterAvgFactor = 2;
   const rateMeterInstRoot = new rateMeterUtils.RateMeter(1000 * rateMeterAvgFactor, true);
 
+  const threadCount = argvUtils.getArgv()['thread-hash'];
+
   const progBar = !argvUtils.getArgv()['no-show-progress']
     ? new cliProgress.MultiBar(appConfig.logger.progressBarConfig)
     : undefined;
@@ -60,7 +60,7 @@ async function calculateHashes(
     finishDataSizeGlobal,
     filesOverallSize,
     rateMeterInstRoot.getRate(),
-    argvUtils.getArgv()['thread-hash'],
+    threadCount,
   );
   const progBarTitle = progBar?.create(filesOverallSize, 0, progBarRootPayload, {
     format: termPrettyUtils.progBarFmtCfg.hashing.title,
@@ -69,14 +69,26 @@ async function calculateHashes(
     format: termPrettyUtils.progBarFmtCfg.download.root,
   });
 
-  needCalcFileEntry.forEach((fileEntry) => {
-    queue.add(async () => {
+  const workers: Worker[] = [];
+  for (let i = 0; i < threadCount; i++) {
+    workers.push(new Worker(workerUrl));
+  }
+
+  let nextFileIndex = 0;
+
+  const processFile = async (worker: Worker) => {
+    while (true) {
+      const index = nextFileIndex++;
+      if (index >= needCalcFileEntry.length) return;
+
+      const fileEntry = needCalcFileEntry[index];
+      if (!fileEntry) throw new Error('fileEntry is falsy');
       const filePath = path.join(tempOutputDirPath, fileEntry.uuid);
 
       let finishDataSize = 0;
       const rateMeterFile = new rateMeterUtils.RateMeter(1000 * rateMeterAvgFactor, true);
       const progBarSub =
-        process.stdout.rows > queue.concurrency + 3
+        process.stdout.rows > threadCount + 3
           ? progBar?.create(
               fileEntry.size,
               finishDataSize,
@@ -90,85 +102,90 @@ async function calculateHashes(
             )
           : undefined;
 
-      await new Promise<void>((resolve, reject) => {
-        // Import the worker script as text and create a Blob URL
-        // to ensure it's bundled into the final executable.
-        const worker = new Worker(workerUrl);
-        const progBarUpdateFunc = (subCurrent: number) => {
-          progBarSub?.update(
-            subCurrent,
-            termPrettyUtils.progBarTextFmter.download.sub(
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const progBarUpdateFunc = (subCurrent: number) => {
+            progBarSub?.update(
               subCurrent,
-              fileEntry.size,
-              rateMeterFile.getRate(),
-              fileEntry.path.at(-1) ?? '',
-            ),
-          );
-          const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
-            results.length,
-            needCalcFileEntry.length,
-            finishDataSizeGlobal,
-            filesOverallSize,
-            rateMeterInstRoot.getRate(),
-            Math.abs(queue.pending)
-              .toString()
-              .padStart(Math.floor(Math.log10(queue.concurrency)) + 1, ' '),
-          );
-          progBarRoot?.update(finishDataSizeGlobal, tmpRootPayload);
-          progBarTitle?.update(0, tmpRootPayload);
-        };
+              termPrettyUtils.progBarTextFmter.download.sub(
+                subCurrent,
+                fileEntry.size,
+                rateMeterFile.getRate(),
+                fileEntry.path.at(-1) ?? '',
+              ),
+            );
+            const tmpRootPayload = termPrettyUtils.progBarTextFmter.download.root(
+              results.length,
+              needCalcFileEntry.length,
+              finishDataSizeGlobal,
+              filesOverallSize,
+              rateMeterInstRoot.getRate(),
+              threadCount,
+            );
+            progBarRoot?.update(finishDataSizeGlobal, tmpRootPayload);
+            progBarTitle?.update(0, tmpRootPayload);
+          };
 
-        worker.onmessage = (
-          event: MessageEvent<
-            | { type: 'progress'; chunk_size: number }
-            | { type: 'done'; result: Record<'sha256' | 'sha384' | 'sha512' | 'sha3-512', string> }
-            | { type: 'error'; error: { message: string; stack?: string } }
-          >,
-        ) => {
-          const data = event.data;
-          switch (data.type) {
-            case 'progress':
-              finishDataSizeGlobal += data.chunk_size;
-              finishDataSize += data.chunk_size;
-              rateMeterInstRoot.increment(data.chunk_size);
-              rateMeterFile.increment(data.chunk_size);
-              progBarUpdateFunc(finishDataSize);
-              break;
-            case 'done':
-              results.push({ path: fileEntry.path, uuid: fileEntry.uuid, hash: data.result });
-              progBarUpdateFunc(fileEntry.size);
-              progBarSub?.stop();
-              progBar?.remove(progBarSub!);
-              worker.terminate();
-              resolve();
-              break;
-            case 'error':
-              console.error(`Worker error for ${fileEntry.path.join('/')}:`, data.error);
-              worker.terminate();
-              reject(new Error(`Worker error for ${fileEntry.path.join('/')}: ${data.error.message}`));
-              break;
-          }
-        };
+          worker.onmessage = (
+            event: MessageEvent<
+              | { type: 'progress'; chunk_size: number }
+              | { type: 'done'; result: Record<'sha256' | 'sha384' | 'sha512' | 'sha3-512', string> }
+              | { type: 'error'; error: { message: string; stack?: string } }
+            >,
+          ) => {
+            const data = event.data;
+            switch (data.type) {
+              case 'progress':
+                finishDataSizeGlobal += data.chunk_size;
+                finishDataSize += data.chunk_size;
+                rateMeterInstRoot.increment(data.chunk_size);
+                rateMeterFile.increment(data.chunk_size);
+                progBarUpdateFunc(finishDataSize);
+                break;
+              case 'done':
+                results.push({ path: fileEntry.path, uuid: fileEntry.uuid, hash: data.result });
+                progBarUpdateFunc(fileEntry.size);
+                resolve();
+                break;
+              case 'error':
+                console.error(`Worker error for ${fileEntry.path.join('/')}:`, data.error);
+                reject(new Error(`Worker error for ${fileEntry.path.join('/')}: ${data.error.message}`));
+                break;
+            }
+          };
 
-        worker.onerror = (err) => {
-          // This catches errors that prevent the worker script from loading or executing.
-          console.error(`A critical error occurred in the worker for ${fileEntry.path.join('/')}:`, err);
-          worker.terminate();
-          reject(new Error(`Worker failed for ${fileEntry.path.join('/')}: ${err.message}`));
-        };
+          worker.onerror = (err) => {
+            // This catches errors that prevent the worker script from loading or executing.
+            console.error(`A critical error occurred in the worker for ${fileEntry.path.join('/')}:`, err);
+            reject(new Error(`Worker failed for ${fileEntry.path.join('/')}: ${err.message}`));
+          };
 
-        worker.postMessage({
-          filePath,
-          algorithms: hashAlgorithms,
+          worker.postMessage({
+            filePath,
+            algorithms: hashAlgorithms,
+          });
         });
-      });
-    });
-  });
+      } finally {
+        progBarSub?.stop();
+        progBar?.remove(progBarSub!);
+        worker.onmessage = null;
+        worker.onerror = null;
+      }
 
-  await queue.onIdle();
+      if (index % 10 === 0) {
+        Bun.gc(true);
+      }
+    }
+  };
 
-  progBar?.stop();
-  URL.revokeObjectURL(workerUrl);
+  try {
+    await Promise.all(workers.map((w) => processFile(w)));
+  } finally {
+    workers.forEach((w) => w.terminate());
+    URL.revokeObjectURL(workerUrl);
+    progBar?.stop();
+    Bun.gc(true);
+  }
 
   logger.info(
     'All file hashes calculated. Speed: ' +
